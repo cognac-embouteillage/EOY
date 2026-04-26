@@ -1,0 +1,1276 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Traçabilité Palettes — JHC</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
+
+:root {
+  --bg: #f4f3f0;
+  --surface: #ffffff;
+  --surface2: #f0eeea;
+  --border: #dddad4;
+  --border-strong: #c5c0b8;
+  --text: #1a1916;
+  --text-muted: #7a756c;
+  --accent: #1a1916;
+  --gold: #b8962e;
+  --gold-light: #f5edda;
+  --gold-border: #e0c878;
+  --vs-color: #1a5276;
+  --vs-bg: #eaf2fb;
+  --vs-border: #85b9d8;
+  --vsop-color: #7d1a4a;
+  --vsop-bg: #fceaf2;
+  --vsop-border: #d888aa;
+  --xo-color: #1a5c2e;
+  --xo-bg: #eafaf0;
+  --xo-border: #7ecda0;
+  --error-bg: #fdf0f0;
+  --error: #8b1a1a;
+  --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 4px 16px rgba(0,0,0,0.06);
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.06);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'IBM Plex Sans', sans-serif;
+  min-height: 100vh;
+}
+
+/* HEADER */
+header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 0 32px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 200;
+  box-shadow: var(--shadow-sm);
+}
+.logo { display: flex; align-items: center; gap: 12px; }
+.logo-badge {
+  background: var(--accent); color: white;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px; font-weight: 500;
+  padding: 4px 8px; border-radius: 4px; letter-spacing: 1px;
+}
+.logo-title { font-size: 14px; font-weight: 600; }
+.header-center {
+  display: flex; align-items: center; gap: 10px;
+}
+.palette-counter {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px; font-weight: 500;
+  background: var(--gold-light);
+  border: 1px solid var(--gold-border);
+  color: var(--gold);
+  padding: 4px 12px; border-radius: 20px;
+}
+.header-clock {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px; color: var(--text-muted);
+  text-align: right; line-height: 1.5;
+}
+
+/* PROGRESS */
+.progress-bar {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 14px 32px;
+  display: flex;
+  align-items: center;
+}
+.step-item {
+  display: flex; align-items: center; gap: 8px;
+  flex: 1; position: relative;
+}
+.step-item:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: 120px; right: 0;
+  top: 50%; transform: translateY(-50%);
+  height: 2px; background: var(--border);
+  z-index: 0; transition: background 0.3s;
+}
+.step-item.done:not(:last-child)::after { background: var(--gold); }
+.step-num {
+  width: 28px; height: 28px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px; font-weight: 500;
+  border: 2px solid var(--border);
+  background: var(--surface); color: var(--text-muted);
+  flex-shrink: 0; transition: all 0.3s; position: relative; z-index: 1;
+}
+.step-item.active .step-num { border-color: var(--gold); background: var(--gold); color: white; }
+.step-item.done .step-num { border-color: var(--gold); background: var(--gold-light); color: var(--gold); }
+.step-info { flex-shrink: 0; }
+.step-label { font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+.step-item.active .step-label { color: var(--text); }
+.step-item.done .step-label { color: var(--gold); }
+.step-sublabel { font-size: 9px; color: var(--text-muted); font-family: 'IBM Plex Mono', monospace; }
+
+/* MAIN */
+.main { max-width: 960px; margin: 28px auto; padding: 0 24px; }
+
+/* STEP CARD */
+.step-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  margin-bottom: 16px;
+  overflow: hidden;
+  transition: opacity 0.3s;
+}
+.step-card.locked { opacity: 0.45; pointer-events: none; }
+
+.step-card-header {
+  padding: 16px 20px;
+  display: flex; align-items: center; justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+}
+.step-card-title { display: flex; align-items: center; gap: 10px; }
+.type-pill {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px; font-weight: 500;
+  padding: 3px 9px; border-radius: 20px; letter-spacing: 0.5px;
+}
+.pill-pf { background: var(--gold-light); color: var(--gold); border: 1px solid var(--gold-border); }
+.pill-vs { background: var(--vs-bg); color: var(--vs-color); border: 1px solid var(--vs-border); }
+.pill-vsop { background: var(--vsop-bg); color: var(--vsop-color); border: 1px solid var(--vsop-border); }
+.pill-xo { background: var(--xo-bg); color: var(--xo-color); border: 1px solid var(--xo-border); }
+.step-card-title h2 { font-size: 15px; font-weight: 700; }
+.step-status-badge {
+  font-family: 'IBM Plex Mono', monospace; font-size: 10px;
+  padding: 3px 9px; border-radius: 4px;
+  background: var(--surface2); color: var(--text-muted); border: 1px solid var(--border);
+}
+.step-status-badge.done { background: var(--xo-bg); color: var(--xo-color); border-color: var(--xo-border); }
+
+.step-card-body { padding: 20px; }
+
+/* SCAN ZONE */
+.scan-zone {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: 20px; align-items: start;
+}
+@media (max-width: 680px) { .scan-zone { grid-template-columns: 1fr; } }
+
+/* CAPTURE AREA */
+.capture-area { display: flex; flex-direction: column; gap: 10px; }
+
+.mode-tabs {
+  display: flex; background: var(--surface2);
+  border: 1px solid var(--border); border-radius: 7px;
+  padding: 3px; gap: 2px;
+}
+.mode-tab {
+  flex: 1; padding: 6px; border: none; background: transparent;
+  color: var(--text-muted); cursor: pointer; border-radius: 5px;
+  font-family: 'IBM Plex Sans', sans-serif; font-size: 12px; font-weight: 600;
+  transition: all 0.15s;
+}
+.mode-tab.active { background: var(--surface); color: var(--text); box-shadow: var(--shadow-sm); }
+
+/* CAMERA BOX */
+.camera-box {
+  position: relative; background: var(--surface2);
+  border: 2px dashed var(--border-strong);
+  border-radius: 10px; aspect-ratio: 4/3; overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+}
+.camera-box video, .camera-box canvas {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: cover; display: none;
+}
+.camera-placeholder {
+  display: flex; flex-direction: column;
+  align-items: center; gap: 6px;
+  color: var(--text-muted); padding: 16px; text-align: center;
+}
+.camera-placeholder .icon { font-size: 28px; }
+.camera-placeholder p { font-size: 11px; line-height: 1.5; }
+
+/* SCAN LOADING */
+.scan-loading {
+  position: absolute; inset: 0;
+  background: rgba(244,243,240,0.88);
+  display: none; align-items: center; justify-content: center;
+  flex-direction: column; gap: 8px; z-index: 10;
+}
+.scan-loading.active { display: flex; }
+.spinner {
+  width: 28px; height: 28px;
+  border: 3px solid var(--border); border-top-color: var(--gold);
+  border-radius: 50%; animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinner-text { font-size: 11px; color: var(--text-muted); }
+
+/* BUTTONS */
+.btn {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 9px 14px;
+  border: 1px solid var(--border); border-radius: 7px;
+  background: var(--surface); color: var(--text);
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 12px; font-weight: 600;
+  cursor: pointer; transition: all 0.15s; width: 100%;
+}
+.btn:hover:not(:disabled) { background: var(--surface2); border-color: var(--border-strong); }
+.btn:disabled { opacity: 0.38; cursor: not-allowed; }
+
+.btn-primary { background: var(--accent); border-color: var(--accent); color: white; }
+.btn-primary:hover:not(:disabled) { background: #2d2d2d; }
+
+.btn-capture-live {
+  background: var(--surface2); border: 2px solid var(--accent);
+  color: var(--accent); font-size: 13px; padding: 11px;
+}
+
+.btn-gold {
+  background: var(--gold); border-color: var(--gold); color: white;
+  font-size: 14px; padding: 13px 20px;
+}
+.btn-gold:hover:not(:disabled) { background: #9e7d24; }
+
+.btn-next-palette {
+  background: #1a4a1a; border-color: #1a4a1a; color: white;
+  font-size: 14px; padding: 13px 20px;
+}
+.btn-next-palette:hover:not(:disabled) { background: #143d14; }
+
+.btn-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+
+/* UPLOAD */
+.upload-clickable {
+  background: var(--surface2); border: 2px dashed var(--border-strong);
+  border-radius: 10px; padding: 28px 16px; text-align: center;
+  cursor: pointer; transition: all 0.15s; aspect-ratio: 4/3;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 8px;
+}
+.upload-clickable:hover { border-color: var(--gold); background: var(--gold-light); }
+.upload-clickable .icon { font-size: 28px; }
+.upload-clickable p { font-size: 11px; color: var(--text-muted); line-height: 1.5; }
+.upload-clickable strong { color: var(--gold); }
+
+/* RESULT PANEL */
+.result-panel { display: flex; flex-direction: column; gap: 8px; }
+.result-placeholder {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; min-height: 180px;
+  color: var(--text-muted); gap: 6px; text-align: center;
+}
+.result-placeholder .icon { font-size: 24px; opacity: 0.35; }
+.result-placeholder p { font-size: 12px; }
+
+.result-fields {
+  border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
+}
+.result-field {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 12px; border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.result-field:last-child { border-bottom: none; }
+.result-field:nth-child(even) { background: var(--surface2); }
+.field-key {
+  font-family: 'IBM Plex Mono', monospace; font-size: 10px;
+  color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.8px; flex-shrink: 0;
+}
+.field-val {
+  font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+  color: var(--text); text-align: right; word-break: break-all; max-width: 65%;
+}
+.field-val.highlight { color: var(--gold); font-weight: 700; font-size: 13px; }
+.field-val.concat-val {
+  color: var(--accent); font-weight: 700; font-size: 12px;
+  background: var(--surface2); padding: 2px 6px; border-radius: 4px;
+  border: 1px solid var(--border-strong);
+}
+
+/* STATUS MSG */
+.status-msg {
+  font-size: 11px; padding: 7px 11px; border-radius: 6px;
+  border: 1px solid var(--border); background: var(--surface2);
+  color: var(--text-muted); font-family: 'IBM Plex Mono', monospace;
+}
+.status-msg.ok { background: var(--xo-bg); border-color: var(--xo-border); color: var(--xo-color); }
+.status-msg.err { background: var(--error-bg); border-color: #e8aaaa; color: var(--error); }
+.status-msg.loading { background: var(--gold-light); border-color: var(--gold-border); color: var(--gold); }
+
+/* EXPORT CARD */
+.export-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; box-shadow: var(--shadow); overflow: hidden;
+  transition: opacity 0.3s;
+}
+.export-card.locked { opacity: 0.4; pointer-events: none; }
+
+.export-card-header {
+  background: var(--accent); color: white;
+  padding: 16px 24px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.export-card-header h2 { font-size: 15px; font-weight: 700; }
+.export-card-header p { font-size: 11px; opacity: 0.65; }
+.export-card-body { padding: 20px; }
+
+/* SUMMARY */
+.sscc-display {
+  background: var(--gold-light); border: 1px solid var(--gold-border);
+  border-radius: 8px; padding: 12px 16px; margin-bottom: 14px;
+}
+.sscc-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); margin-bottom: 4px; }
+.sscc-value { font-family: 'IBM Plex Mono', monospace; font-size: 15px; font-weight: 700; color: var(--gold); letter-spacing: 1px; }
+
+.summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; }
+@media (max-width: 600px) { .summary-grid { grid-template-columns: repeat(2,1fr); } }
+.summary-item {
+  border: 1px solid var(--border); border-radius: 8px;
+  padding: 12px; background: var(--surface2); text-align: center;
+}
+.summary-type { font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 600; margin-bottom: 4px; }
+.summary-concat {
+  font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 700;
+  color: var(--text); word-break: break-all; line-height: 1.3;
+}
+.summary-concat.empty { color: var(--text-muted); font-size: 10px; }
+
+/* PALETTES TABLE */
+.palettes-section { margin-top: 24px; }
+.palettes-section h3 {
+  font-size: 12px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.8px; color: var(--text-muted); margin-bottom: 10px;
+}
+.palettes-table {
+  width: 100%; border-collapse: collapse;
+  border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
+  font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+}
+.palettes-table th {
+  background: var(--surface2); padding: 8px 12px; text-align: left;
+  font-size: 9px; text-transform: uppercase; letter-spacing: 0.8px;
+  color: var(--text-muted); border-bottom: 1px solid var(--border);
+}
+.palettes-table td {
+  padding: 9px 12px; border-bottom: 1px solid var(--border);
+  background: var(--surface); color: var(--text);
+}
+.palettes-table tr:last-child td { border-bottom: none; }
+.palettes-table tr:nth-child(even) td { background: var(--surface2); }
+.cell-pf { color: var(--gold); font-weight: 700; }
+.cell-vs { color: var(--vs-color); }
+.cell-vsop { color: var(--vsop-color); }
+.cell-xo { color: var(--xo-color); }
+
+.export-actions { display: flex; gap: 10px; align-items: center; margin-top: 16px; }
+
+#hidden-canvas { display: none; }
+
+/* ── LOGIN SCREEN ── */
+#login-screen {
+  position: fixed; inset: 0; z-index: 9999;
+  background: var(--bg);
+  display: flex; align-items: center; justify-content: center;
+}
+.login-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: 0 4px 40px rgba(0,0,0,0.12);
+  padding: 40px 36px;
+  width: 100%; max-width: 420px;
+  display: flex; flex-direction: column; gap: 24px;
+}
+.login-logo {
+  display: flex; align-items: center; gap: 12px;
+}
+.login-logo .logo-badge {
+  background: var(--accent); color: white;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 13px; font-weight: 500;
+  padding: 5px 10px; border-radius: 5px; letter-spacing: 1px;
+}
+.login-logo .logo-title { font-size: 15px; font-weight: 700; }
+.login-desc {
+  font-size: 13px; color: var(--text-muted); line-height: 1.6;
+}
+.login-field { display: flex; flex-direction: column; gap: 6px; }
+.login-label {
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.8px; color: var(--text-muted);
+}
+.login-input {
+  font-family: 'IBM Plex Mono', monospace; font-size: 13px;
+  padding: 11px 14px;
+  border: 1px solid var(--border); border-radius: 8px;
+  background: var(--surface2); color: var(--text);
+  outline: none; transition: border-color 0.15s; width: 100%;
+}
+.login-input:focus { border-color: var(--gold); background: var(--surface); }
+.login-input::placeholder { color: var(--text-muted); }
+.login-input.err { border-color: #e8aaaa; background: var(--error-bg); }
+.login-error {
+  font-size: 11px; color: var(--error);
+  font-family: 'IBM Plex Mono', monospace;
+  display: none;
+}
+.login-error.visible { display: block; }
+.btn-login {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 13px 20px;
+  background: var(--accent); border: none; border-radius: 8px;
+  color: white; font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 14px; font-weight: 700; cursor: pointer; transition: all 0.15s;
+}
+.btn-login:hover { background: #2d2d2d; }
+.btn-login:disabled { opacity: 0.45; cursor: not-allowed; }
+.login-note {
+  font-size: 10px; color: var(--text-muted); line-height: 1.5;
+  padding-top: 4px; border-top: 1px solid var(--border);
+}
+.login-note a { color: var(--gold); text-decoration: none; }
+.login-note a:hover { text-decoration: underline; }
+.login-spinner { display: none; }
+.login-spinner.active { display: inline-block; }
+.mini-spinner {
+  width: 14px; height: 14px;
+  border: 2px solid rgba(255,255,255,0.4); border-top-color: white;
+  border-radius: 50%; animation: spin 0.7s linear infinite;
+  display: inline-block;
+}
+</style>
+</head>
+<body>
+
+<canvas id="hidden-canvas"></canvas>
+
+<!-- ── ÉCRAN DE CONNEXION ── -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="logo-badge">JHC</div>
+      <div class="logo-title">Traçabilité Palettes · Hennessy</div>
+    </div>
+    <p class="login-desc">
+      Saisissez votre clé API Anthropic pour démarrer.<br>
+      Elle est conservée uniquement en mémoire et jamais enregistrée.
+    </p>
+    <div class="login-field">
+      <label class="login-label" for="api-key-input">Clé API Anthropic</label>
+      <input
+        type="password"
+        id="api-key-input"
+        class="login-input"
+        placeholder="sk-ant-api03-..."
+        autocomplete="off"
+        spellcheck="false"
+        onkeydown="if(event.key==='Enter') submitKey()"
+      >
+      <div class="login-error" id="login-error">Clé invalide — vérifiez qu'elle commence par sk-ant-</div>
+    </div>
+    <button class="btn-login" id="btn-login" onclick="submitKey()">
+      <span class="login-spinner" id="login-spinner"><span class="mini-spinner"></span></span>
+      Accéder à l'application
+    </button>
+    <p class="login-note">
+      Obtenez votre clé sur <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a> → API Keys.<br>
+      Ne partagez jamais votre clé. Elle ne sera jamais stockée dans ce code.
+    </p>
+  </div>
+</div>
+
+<header>
+  <div class="logo">
+    <div class="logo-badge">JHC</div>
+    <div class="logo-title">Traçabilité Palettes · Hennessy</div>
+  </div>
+  <div class="header-center">
+    <div class="palette-counter" id="palette-counter">Palette #1</div>
+  </div>
+  <div class="header-clock" id="clock">—</div>
+</header>
+
+<div class="progress-bar" id="progress-bar">
+  <div class="step-item active" id="prog-0">
+    <div class="step-num">1</div>
+    <div class="step-info"><div class="step-label">PF</div><div class="step-sublabel">Produit Fini</div></div>
+  </div>
+  <div class="step-item" id="prog-1">
+    <div class="step-num">2</div>
+    <div class="step-info"><div class="step-label">SF VS</div><div class="step-sublabel">Very Special</div></div>
+  </div>
+  <div class="step-item" id="prog-2">
+    <div class="step-num">3</div>
+    <div class="step-info"><div class="step-label">SF VSOP</div><div class="step-sublabel">Very Superior</div></div>
+  </div>
+  <div class="step-item" id="prog-3">
+    <div class="step-num">4</div>
+    <div class="step-info"><div class="step-label">SF XO</div><div class="step-sublabel">Extra Old</div></div>
+  </div>
+  <div class="step-item" id="prog-4">
+    <div class="step-num">5</div>
+    <div class="step-info"><div class="step-label">Export</div><div class="step-sublabel">Excel</div></div>
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- ── PF ── -->
+  <div class="step-card" id="card-pf">
+    <div class="step-card-header">
+      <div class="step-card-title">
+        <span class="type-pill pill-pf">PF</span>
+        <h2>Étape 1 — Produit Fini</h2>
+      </div>
+      <div class="step-status-badge" id="status-pf">En attente</div>
+    </div>
+    <div class="step-card-body">
+      <div class="scan-zone">
+        <div class="capture-area">
+          <div class="mode-tabs">
+            <button class="mode-tab active" onclick="setMode('pf','camera')">📷 Caméra</button>
+            <button class="mode-tab" onclick="setMode('pf','upload')">📁 Fichier</button>
+          </div>
+          <div id="pf-camera-ui">
+            <div class="camera-box">
+              <div class="camera-placeholder" id="ph-pf"><div class="icon">📦</div><p>Caméra arrière vers<br>la fiche PF</p></div>
+              <video id="vid-pf" autoplay playsinline></video>
+              <canvas id="cnv-pf"></canvas>
+              <div class="scan-loading" id="loading-pf"><div class="spinner"></div><div class="spinner-text">Analyse IA…</div></div>
+            </div>
+            <div class="btn-grid-2" style="margin-top:8px">
+              <button class="btn" onclick="startCam('pf')" id="start-pf">▶ Démarrer</button>
+              <button class="btn" onclick="stopCam('pf')" id="stop-pf" disabled>■ Arrêter</button>
+            </div>
+            <button class="btn btn-capture-live" onclick="capture('pf')" id="cap-pf" disabled style="margin-top:7px">⊙ Capturer → analyse auto</button>
+          </div>
+          <div id="pf-upload-ui" style="display:none">
+            <label for="file-pf">
+              <div class="upload-clickable">
+                <div class="icon">🖼️</div>
+                <p><strong>Cliquez</strong> ou glissez une photo<br><span style="font-size:10px">Analyse auto dès le chargement</span></p>
+              </div>
+            </label>
+            <input type="file" id="file-pf" accept="image/*" onchange="handleFile(event,'pf')" style="display:none">
+            <div class="camera-box" id="upload-preview-pf" style="display:none;margin-top:8px">
+              <canvas id="cnv-upload-pf" style="width:100%;height:100%;object-fit:contain;display:block;"></canvas>
+              <div class="scan-loading" id="loading-upload-pf"><div class="spinner"></div><div class="spinner-text">Analyse IA…</div></div>
+            </div>
+          </div>
+          <div class="status-msg" id="msg-pf">Démarrez la caméra ou chargez une photo</div>
+        </div>
+        <div class="result-panel" id="result-pf">
+          <div class="result-placeholder"><div class="icon">📋</div><p>Les données apparaîtront<br>après capture</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── VS ── -->
+  <div class="step-card locked" id="card-vs">
+    <div class="step-card-header">
+      <div class="step-card-title">
+        <span class="type-pill pill-vs">SF VS</span>
+        <h2>Étape 2 — Semi-Fini Very Special</h2>
+      </div>
+      <div class="step-status-badge" id="status-vs">En attente</div>
+    </div>
+    <div class="step-card-body">
+      <div class="scan-zone">
+        <div class="capture-area">
+          <div class="mode-tabs">
+            <button class="mode-tab active" onclick="setMode('vs','camera')">📷 Caméra</button>
+            <button class="mode-tab" onclick="setMode('vs','upload')">📁 Fichier</button>
+          </div>
+          <div id="vs-camera-ui">
+            <div class="camera-box">
+              <div class="camera-placeholder" id="ph-vs"><div class="icon">🔵</div><p>Fiche palette SF VS</p></div>
+              <video id="vid-vs" autoplay playsinline></video>
+              <canvas id="cnv-vs"></canvas>
+              <div class="scan-loading" id="loading-vs"><div class="spinner"></div><div class="spinner-text">Analyse IA…</div></div>
+            </div>
+            <div class="btn-grid-2" style="margin-top:8px">
+              <button class="btn" onclick="startCam('vs')" id="start-vs">▶ Démarrer</button>
+              <button class="btn" onclick="stopCam('vs')" id="stop-vs" disabled>■ Arrêter</button>
+            </div>
+            <button class="btn btn-capture-live" onclick="capture('vs')" id="cap-vs" disabled style="margin-top:7px">⊙ Capturer → analyse auto</button>
+          </div>
+          <div id="vs-upload-ui" style="display:none">
+            <label for="file-vs">
+              <div class="upload-clickable">
+                <div class="icon">🖼️</div>
+                <p><strong>Cliquez</strong> ou glissez une photo<br><span style="font-size:10px">Analyse auto dès le chargement</span></p>
+              </div>
+            </label>
+            <input type="file" id="file-vs" accept="image/*" onchange="handleFile(event,'vs')" style="display:none">
+            <div class="camera-box" id="upload-preview-vs" style="display:none;margin-top:8px">
+              <canvas id="cnv-upload-vs" style="width:100%;height:100%;object-fit:contain;display:block;"></canvas>
+              <div class="scan-loading" id="loading-upload-vs"><div class="spinner"></div><div class="spinner-text">Analyse IA…</div></div>
+            </div>
+          </div>
+          <div class="status-msg" id="msg-vs">Démarrez la caméra ou chargez une photo</div>
+        </div>
+        <div class="result-panel" id="result-vs">
+          <div class="result-placeholder"><div class="icon">📋</div><p>Les données apparaîtront<br>après capture</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── VSOP ── -->
+  <div class="step-card locked" id="card-vsop">
+    <div class="step-card-header">
+      <div class="step-card-title">
+        <span class="type-pill pill-vsop">SF VSOP</span>
+        <h2>Étape 3 — Semi-Fini Very Superior Old Pale</h2>
+      </div>
+      <div class="step-status-badge" id="status-vsop">En attente</div>
+    </div>
+    <div class="step-card-body">
+      <div class="scan-zone">
+        <div class="capture-area">
+          <div class="mode-tabs">
+            <button class="mode-tab active" onclick="setMode('vsop','camera')">📷 Caméra</button>
+            <button class="mode-tab" onclick="setMode('vsop','upload')">📁 Fichier</button>
+          </div>
+          <div id="vsop-camera-ui">
+            <div class="camera-box">
+              <div class="camera-placeholder" id="ph-vsop"><div class="icon">🟣</div><p>Fiche palette SF VSOP</p></div>
+              <video id="vid-vsop" autoplay playsinline></video>
+              <canvas id="cnv-vsop"></canvas>
+              <div class="scan-loading" id="loading-vsop"><div class="spinner"></div><div class="spinner-text">Analyse IA…</div></div>
+            </div>
+            <div class="btn-grid-2" style="margin-top:8px">
+              <button class="btn" onclick="startCam('vsop')" id="start-vsop">▶ Démarrer</button>
+              <button class="btn" onclick="stopCam('vsop')" id="stop-vsop" disabled>■ Arrêter</button>
+            </div>
+            <button class="btn btn-capture-live" onclick="capture('vsop')" id="cap-vsop" disabled style="margin-top:7px">⊙ Capturer → analyse auto</button>
+          </div>
+          <div id="vsop-upload-ui" style="display:none">
+            <label for="file-vsop">
+              <div class="upload-clickable">
+                <div class="icon">🖼️</div>
+                <p><strong>Cliquez</strong> ou glissez une photo<br><span style="font-size:10px">Analyse auto dès le chargement</span></p>
+              </div>
+            </label>
+            <input type="file" id="file-vsop" accept="image/*" onchange="handleFile(event,'vsop')" style="display:none">
+            <div class="camera-box" id="upload-preview-vsop" style="display:none;margin-top:8px">
+              <canvas id="cnv-upload-vsop" style="width:100%;height:100%;object-fit:contain;display:block;"></canvas>
+              <div class="scan-loading" id="loading-upload-vsop"><div class="spinner"></div><div class="spinner-text">Analyse IA…</div></div>
+            </div>
+          </div>
+          <div class="status-msg" id="msg-vsop">Démarrez la caméra ou chargez une photo</div>
+        </div>
+        <div class="result-panel" id="result-vsop">
+          <div class="result-placeholder"><div class="icon">📋</div><p>Les données apparaîtront<br>après capture</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── XO ── -->
+  <div class="step-card locked" id="card-xo">
+    <div class="step-card-header">
+      <div class="step-card-title">
+        <span class="type-pill pill-xo">SF XO</span>
+        <h2>Étape 4 — Semi-Fini Extra Old</h2>
+      </div>
+      <div class="step-status-badge" id="status-xo">En attente</div>
+    </div>
+    <div class="step-card-body">
+      <div class="scan-zone">
+        <div class="capture-area">
+          <div class="mode-tabs">
+            <button class="mode-tab active" onclick="setMode('xo','camera')">📷 Caméra</button>
+            <button class="mode-tab" onclick="setMode('xo','upload')">📁 Fichier</button>
+          </div>
+          <div id="xo-camera-ui">
+            <div class="camera-box">
+              <div class="camera-placeholder" id="ph-xo"><div class="icon">🟢</div><p>Fiche palette SF XO</p></div>
+              <video id="vid-xo" autoplay playsinline></video>
+              <canvas id="cnv-xo"></canvas>
+              <div class="scan-loading" id="loading-xo"><div class="spinner"></div><div class="spinner-text">Analyse IA…</div></div>
+            </div>
+            <div class="btn-grid-2" style="margin-top:8px">
+              <button class="btn" onclick="startCam('xo')" id="start-xo">▶ Démarrer</button>
+              <button class="btn" onclick="stopCam('xo')" id="stop-xo" disabled>■ Arrêter</button>
+            </div>
+            <button class="btn btn-capture-live" onclick="capture('xo')" id="cap-xo" disabled style="margin-top:7px">⊙ Capturer → analyse auto</button>
+          </div>
+          <div id="xo-upload-ui" style="display:none">
+            <label for="file-xo">
+              <div class="upload-clickable">
+                <div class="icon">🖼️</div>
+                <p><strong>Cliquez</strong> ou glissez une photo<br><span style="font-size:10px">Analyse auto dès le chargement</span></p>
+              </div>
+            </label>
+            <input type="file" id="file-xo" accept="image/*" onchange="handleFile(event,'xo')" style="display:none">
+            <div class="camera-box" id="upload-preview-xo" style="display:none;margin-top:8px">
+              <canvas id="cnv-upload-xo" style="width:100%;height:100%;object-fit:contain;display:block;"></canvas>
+              <div class="scan-loading" id="loading-upload-xo"><div class="spinner"></div><div class="spinner-text">Analyse IA…</div></div>
+            </div>
+          </div>
+          <div class="status-msg" id="msg-xo">Démarrez la caméra ou chargez une photo</div>
+        </div>
+        <div class="result-panel" id="result-xo">
+          <div class="result-placeholder"><div class="icon">📋</div><p>Les données apparaîtront<br>après capture</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── EXPORT ── -->
+  <div class="export-card locked" id="card-export">
+    <div class="export-card-header">
+      <div>
+        <h2>Étape 5 — Synthèse & Export</h2>
+        <p>Palette complète — tous les SF liés au PF</p>
+      </div>
+      <div style="font-size:22px">📊</div>
+    </div>
+    <div class="export-card-body">
+      <div class="sscc-display">
+        <div class="sscc-label">SSCC Palette PF</div>
+        <div class="sscc-value" id="export-sscc">—</div>
+      </div>
+      <div class="summary-grid">
+        <div class="summary-item">
+          <div class="summary-type" style="color:var(--gold)">PF</div>
+          <div class="summary-concat" id="sum-pf">—</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-type" style="color:var(--vs-color)">SF VS</div>
+          <div class="summary-concat" id="sum-vs">—</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-type" style="color:var(--vsop-color)">SF VSOP</div>
+          <div class="summary-concat" id="sum-vsop">—</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-type" style="color:var(--xo-color)">SF XO</div>
+          <div class="summary-concat" id="sum-xo">—</div>
+        </div>
+      </div>
+
+      <!-- Toutes les palettes -->
+      <div class="palettes-section">
+        <h3>Toutes les palettes de la session</h3>
+        <div style="overflow-x:auto">
+          <table class="palettes-table" id="palettes-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>SSCC PF</th>
+                <th>PF (code-lot)</th>
+                <th>SF VS (code-lot)</th>
+                <th>SF VSOP (code-lot)</th>
+                <th>SF XO (code-lot)</th>
+                <th>Heure</th>
+              </tr>
+            </thead>
+            <tbody id="palettes-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="export-actions">
+        <button class="btn btn-gold" onclick="exportExcel()" style="flex:1">⬇ Exporter Excel (.xlsx)</button>
+        <button class="btn btn-next-palette" onclick="nextPalette()" style="flex:1">➜ Palette suivante</button>
+        <button class="btn" onclick="confirmReset()" style="width:auto;padding:13px 14px;" title="Tout réinitialiser">↺</button>
+      </div>
+    </div>
+  </div>
+
+  <div style="height:40px"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+// ─── CONFIG — clé API saisie au démarrage, jamais dans le code ───────────────
+let API_KEY = '';
+
+// ─── LOGIN ────────────────────────────────────────────────────────────────────
+function submitKey() {
+  const input = document.getElementById('api-key-input');
+  const key = input.value.trim();
+  const errEl = document.getElementById('login-error');
+  const spinner = document.getElementById('login-spinner');
+  const btn = document.getElementById('btn-login');
+
+  // Validation basique du format
+  if (!key.startsWith('sk-ant-') || key.length < 20) {
+    input.classList.add('err');
+    errEl.classList.add('visible');
+    input.focus();
+    return;
+  }
+
+  input.classList.remove('err');
+  errEl.classList.remove('visible');
+  btn.disabled = true;
+  spinner.classList.add('active');
+
+  // Test rapide de la clé avec un appel minimal
+  fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': key,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
+    body: JSON.stringify({
+      model: 'claude-opus-4-5',
+      max_tokens: 5,
+      messages: [{ role: 'user', content: 'ok' }]
+    })
+  })
+  .then(res => {
+    if (res.ok || res.status === 400) {
+      // 400 peut arriver avec un mini message, clé valide quand même
+      API_KEY = key;
+      document.getElementById('login-screen').style.display = 'none';
+    } else {
+      throw new Error('Clé refusée (statut ' + res.status + ')');
+    }
+  })
+  .catch(() => {
+    // Si fetch échoue (CORS, réseau), on accepte quand même le format
+    // L'erreur réelle apparaîtra au premier scan
+    API_KEY = key;
+    document.getElementById('login-screen').style.display = 'none';
+  })
+  .finally(() => {
+    btn.disabled = false;
+    spinner.classList.remove('active');
+  });
+}
+
+// ─── State ────────────────────────────────────────────────────────────────────
+const STEPS = ['pf', 'vs', 'vsop', 'xo'];
+const TYPE_LABELS = {
+  pf: 'Produit Fini (PF)',
+  vs: 'Semi-Fini VS (Very Special)',
+  vsop: 'Semi-Fini VSOP (Very Superior Old Pale)',
+  xo: 'Semi-Fini XO (Extra Old)'
+};
+
+let streams = {};
+let uploadedB64 = {};
+let currentData = { pf: null, vs: null, vsop: null, xo: null };
+let allPalettes = [];   // historique de toutes les palettes
+let paletteNum = 1;
+
+// ─── Clock ────────────────────────────────────────────────────────────────────
+function tick() {
+  const n = new Date();
+  document.getElementById('clock').innerHTML =
+    n.toLocaleDateString('fr-FR',{weekday:'short',day:'2-digit',month:'short'}) + '<br>' +
+    n.toLocaleTimeString('fr-FR');
+}
+tick(); setInterval(tick, 1000);
+
+// ─── Mode ─────────────────────────────────────────────────────────────────────
+function setMode(type, mode) {
+  const tabs = document.querySelectorAll(`#${type}-camera-ui`)
+    .length ? null : null;
+  document.getElementById(`${type}-camera-ui`).style.display = mode === 'camera' ? 'block' : 'none';
+  document.getElementById(`${type}-upload-ui`).style.display = mode === 'upload' ? 'block' : 'none';
+  // update tab style
+  const card = document.getElementById(`card-${type}`);
+  const modeTabs = card.querySelectorAll('.mode-tab');
+  modeTabs[0].classList.toggle('active', mode === 'camera');
+  modeTabs[1].classList.toggle('active', mode === 'upload');
+  if (mode === 'upload' && streams[type]) stopCam(type);
+}
+
+// ─── Camera ───────────────────────────────────────────────────────────────────
+async function startCam(type) {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width: { ideal: 1920 } }
+    });
+    streams[type] = stream;
+    const vid = document.getElementById(`vid-${type}`);
+    vid.srcObject = stream; vid.style.display = 'block';
+    document.getElementById(`ph-${type}`).style.display = 'none';
+    document.getElementById(`start-${type}`).disabled = true;
+    document.getElementById(`stop-${type}`).disabled = false;
+    document.getElementById(`cap-${type}`).disabled = false;
+    setMsg(type, '📷 Cadrez la fiche et appuyez sur Capturer', 'loading');
+  } catch(e) {
+    setMsg(type, '✗ Caméra indisponible : ' + e.message, 'err');
+  }
+}
+
+function stopCam(type) {
+  if (streams[type]) { streams[type].getTracks().forEach(t => t.stop()); delete streams[type]; }
+  const vid = document.getElementById(`vid-${type}`);
+  vid.style.display = 'none';
+  document.getElementById(`ph-${type}`).style.display = 'flex';
+  document.getElementById(`start-${type}`).disabled = false;
+  document.getElementById(`stop-${type}`).disabled = true;
+  document.getElementById(`cap-${type}`).disabled = true;
+}
+
+async function capture(type) {
+  const vid = document.getElementById(`vid-${type}`);
+  const hc = document.getElementById('hidden-canvas');
+  hc.width = vid.videoWidth; hc.height = vid.videoHeight;
+  hc.getContext('2d').drawImage(vid, 0, 0);
+
+  // Freeze frame
+  const cnv = document.getElementById(`cnv-${type}`);
+  cnv.width = vid.videoWidth; cnv.height = vid.videoHeight;
+  cnv.getContext('2d').drawImage(vid, 0, 0);
+  cnv.style.display = 'block';
+  vid.style.display = 'none';
+
+  const b64 = hc.toDataURL('image/jpeg', 0.92).split(',')[1];
+  // Analyse auto — pas besoin de bouton supplémentaire
+  await analyzeImage(b64, type, 'camera');
+}
+
+// ─── File upload — analyse automatique dès chargement ────────────────────────
+function handleFile(event, type) {
+  const file = event.target.files[0];
+  if (!file) return;
+  setMsg(type, '⏳ Chargement de l\'image…', 'loading');
+  const reader = new FileReader();
+  reader.onload = async e => {
+    uploadedB64[type] = e.target.result.split(',')[1];
+    // Preview
+    const img = new Image();
+    img.onload = () => {
+      const cnv = document.getElementById(`cnv-upload-${type}`);
+      cnv.width = img.width; cnv.height = img.height;
+      cnv.getContext('2d').drawImage(img, 0, 0);
+      document.getElementById(`upload-preview-${type}`).style.display = 'block';
+    };
+    img.src = e.target.result;
+    // Analyse automatique
+    await analyzeImage(uploadedB64[type], type, 'upload');
+  };
+  reader.readAsDataURL(file);
+}
+
+// ─── AI Analysis ──────────────────────────────────────────────────────────────
+async function analyzeImage(b64, type, source) {
+  const loadId = source === 'camera' ? `loading-${type}` : `loading-upload-${type}`;
+  document.getElementById(loadId).classList.add('active');
+  if (source === 'camera') document.getElementById(`cap-${type}`).disabled = true;
+  setMsg(type, '⏳ Analyse IA en cours…', 'loading');
+
+  const prompt = `Tu analyses une étiquette fiche palette JHC / Hennessy. Type: ${TYPE_LABELS[type]}.
+Extrais exactement ces champs:
+- product_code (ex: 01099262)
+- lot (ex: 602988)
+- bottling_date (ex: 2026/01/29)
+- gtin (ex: 10081753848375)
+- sscc (SSCC complet, ex: 332459906077910034)
+- quantity (ex: 56)
+- market (ex: USA DP ou EUROPE)
+- product_ref (ex: HY-VS40-0,75L--C12-USA)
+- ligne (ex: ST M11)
+Réponds UNIQUEMENT avec un JSON valide, sans markdown. Si un champ est absent: null.`;
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': API_KEY,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-opus-4-5',
+        max_tokens: 1000,
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: b64 } },
+            { type: 'text', text: prompt }
+          ]
+        }]
+      })
+    });
+    if (!res.ok) { const e = await res.json(); throw new Error(e.error?.message || `HTTP ${res.status}`); }
+    const json = await res.json();
+    let raw = json.content[0].text.trim().replace(/```json|```/g,'').trim();
+    const parsed = JSON.parse(raw);
+    currentData[type] = parsed;
+    renderResult(type, parsed);
+    markDone(type);
+    setMsg(type, '✓ Fiche analysée avec succès', 'ok');
+    unlockNext(type);
+  } catch(e) {
+    setMsg(type, '✗ ' + e.message, 'err');
+    if (source === 'camera' && streams[type]) document.getElementById(`cap-${type}`).disabled = false;
+  } finally {
+    document.getElementById(loadId).classList.remove('active');
+  }
+}
+
+// ─── Render result — avec concaténation code-lot ──────────────────────────────
+function concat(d) {
+  if (!d) return '—';
+  const code = d.product_code || '';
+  const lot  = d.lot || '';
+  if (!code && !lot) return '—';
+  if (!code) return lot;
+  if (!lot)  return code;
+  return `${code}-${lot}`;
+}
+
+const FIELD_DEFS = [
+  ['Code - Lot', null, true],   // null = computed field
+  ['LOT', 'lot', true],
+  ['Code Produit', 'product_code', false],
+  ['Référence', 'product_ref', false],
+  ['Date Embout.', 'bottling_date', false],
+  ['Marché', 'market', false],
+  ['Quantité', 'quantity', false],
+  ['SSCC', 'sscc', true],
+  ['GTIN', 'gtin', false],
+  ['Ligne', 'ligne', false],
+];
+
+function renderResult(type, d) {
+  const panel = document.getElementById(`result-${type}`);
+  const rows = FIELD_DEFS.map(([label, key, hi]) => {
+    let val, cls;
+    if (key === null) {
+      // Code-Lot concatenated
+      val = concat(d);
+      cls = 'field-val concat-val';
+    } else {
+      val = d[key] || '—';
+      cls = hi ? 'field-val highlight' : 'field-val';
+    }
+    return `<div class="result-field">
+      <span class="field-key">${label}</span>
+      <span class="${cls}">${val}</span>
+    </div>`;
+  }).join('');
+  panel.innerHTML = `<div class="result-fields">${rows}</div>`;
+}
+
+// ─── Workflow ─────────────────────────────────────────────────────────────────
+function markDone(type) {
+  const idx = STEPS.indexOf(type);
+  document.getElementById(`status-${type}`).textContent = '✓ Scanné';
+  document.getElementById(`status-${type}`).classList.add('done');
+  document.getElementById(`prog-${idx}`).classList.remove('active');
+  document.getElementById(`prog-${idx}`).classList.add('done');
+  document.getElementById(`prog-${idx}`).querySelector('.step-num').textContent = '✓';
+}
+
+function unlockNext(type) {
+  const idx = STEPS.indexOf(type);
+  if (idx < STEPS.length - 1) {
+    const next = STEPS[idx + 1];
+    document.getElementById(`card-${next}`).classList.remove('locked');
+    document.getElementById(`card-${next}`).scrollIntoView({ behavior: 'smooth', block: 'start' });
+    document.getElementById(`prog-${idx + 1}`).classList.add('active');
+  } else {
+    unlockExport();
+  }
+}
+
+function unlockExport() {
+  const ec = document.getElementById('card-export');
+  ec.classList.remove('locked');
+  ec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  document.getElementById('prog-4').classList.add('active');
+  refreshExportSummary();
+}
+
+function refreshExportSummary() {
+  const d = currentData;
+  document.getElementById('export-sscc').textContent = d.pf?.sscc || '—';
+  document.getElementById('sum-pf').textContent   = concat(d.pf);
+  document.getElementById('sum-vs').textContent   = concat(d.vs);
+  document.getElementById('sum-vsop').textContent = concat(d.vsop);
+  document.getElementById('sum-xo').textContent   = concat(d.xo);
+}
+
+// ─── Palette suivante ─────────────────────────────────────────────────────────
+function nextPalette() {
+  // Sauvegarde palette courante
+  allPalettes.push({
+    num: paletteNum,
+    time: new Date().toLocaleTimeString('fr-FR'),
+    pf: { ...currentData.pf },
+    vs: { ...currentData.vs },
+    vsop: { ...currentData.vsop },
+    xo: { ...currentData.xo },
+  });
+  paletteNum++;
+  document.getElementById('palette-counter').textContent = `Palette #${paletteNum}`;
+
+  // Reset streams
+  STEPS.forEach(t => { if (streams[t]) stopCam(t); });
+  streams = {}; uploadedB64 = {};
+  currentData = { pf: null, vs: null, vsop: null, xo: null };
+
+  // Reset cards UI
+  STEPS.forEach((type, idx) => {
+    // Status badge
+    const sb = document.getElementById(`status-${type}`);
+    sb.textContent = 'En attente'; sb.classList.remove('done');
+    // Progress
+    const pr = document.getElementById(`prog-${idx}`);
+    pr.classList.remove('done', 'active');
+    pr.querySelector('.step-num').textContent = idx + 1;
+    // Card lock
+    document.getElementById(`card-${type}`).classList.toggle('locked', idx > 0);
+    // Camera/canvas reset
+    const vid = document.getElementById(`vid-${type}`);
+    vid.style.display = 'none';
+    document.getElementById(`cnv-${type}`).style.display = 'none';
+    document.getElementById(`ph-${type}`).style.display = 'flex';
+    document.getElementById(`start-${type}`).disabled = false;
+    document.getElementById(`stop-${type}`).disabled = true;
+    document.getElementById(`cap-${type}`).disabled = true;
+    // Upload reset
+    document.getElementById(`upload-preview-${type}`).style.display = 'none';
+    document.getElementById(`file-${type}`).value = '';
+    // Result panel
+    document.getElementById(`result-${type}`).innerHTML = '<div class="result-placeholder"><div class="icon">📋</div><p>Les données apparaîtront<br>après capture</p></div>';
+    // Status msg
+    setMsg(type, 'Démarrez la caméra ou chargez une photo', '');
+  });
+
+  // Step 1 actif
+  document.getElementById('prog-0').classList.add('active');
+
+  // Export card : reste visible, mise à jour tableau
+  renderPalettesTable();
+  refreshExportSummary();
+
+  // Scroll haut
+  document.getElementById('card-pf').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function renderPalettesTable() {
+  const tbody = document.getElementById('palettes-tbody');
+  tbody.innerHTML = allPalettes.map(p => `
+    <tr>
+      <td>${p.num}</td>
+      <td style="font-size:10px">${p.pf?.sscc || '—'}</td>
+      <td class="cell-pf">${concat(p.pf)}</td>
+      <td class="cell-vs">${concat(p.vs)}</td>
+      <td class="cell-vsop">${concat(p.vsop)}</td>
+      <td class="cell-xo">${concat(p.xo)}</td>
+      <td>${p.time}</td>
+    </tr>`).join('');
+}
+
+// ─── Helper ───────────────────────────────────────────────────────────────────
+function setMsg(type, msg, cls) {
+  const el = document.getElementById(`msg-${type}`);
+  el.textContent = msg;
+  el.className = 'status-msg' + (cls ? ' ' + cls : '');
+}
+
+// ─── Excel Export ─────────────────────────────────────────────────────────────
+function exportExcel() {
+  // Inclure la palette en cours si complète
+  const session = [...allPalettes];
+  if (currentData.pf && currentData.vs && currentData.vsop && currentData.xo) {
+    session.push({
+      num: paletteNum,
+      time: new Date().toLocaleTimeString('fr-FR'),
+      pf: currentData.pf, vs: currentData.vs,
+      vsop: currentData.vsop, xo: currentData.xo
+    });
+  }
+
+  const wb = XLSX.utils.book_new();
+  const now = new Date();
+
+  // ── SHEET 1 : Synthèse toutes palettes ──
+  const header = ['N° Palette', 'SSCC PF', 'PF (code-lot)', 'SF VS (code-lot)', 'SF VSOP (code-lot)', 'SF XO (code-lot)', 'Heure scan'];
+  const rows = [
+    ['TRAÇABILITÉ PALETTES HENNESSY — SESSION DU ' + now.toLocaleDateString('fr-FR')],
+    [],
+    header,
+    ...session.map(p => [
+      p.num,
+      p.pf?.sscc || '',
+      concat(p.pf),
+      concat(p.vs),
+      concat(p.vsop),
+      concat(p.xo),
+      p.time
+    ])
+  ];
+  const ws1 = XLSX.utils.aoa_to_sheet(rows);
+  ws1['!cols'] = [{wch:12},{wch:22},{wch:24},{wch:24},{wch:24},{wch:24},{wch:10}];
+  ws1['!merges'] = [{ s:{r:0,c:0}, e:{r:0,c:6} }];
+  XLSX.utils.book_append_sheet(wb, ws1, 'Synthèse');
+
+  // ── SHEET 2 : Détail complet par palette ──
+  const detailRows = [
+    ['DÉTAIL COMPLET PAR PALETTE'],
+    [],
+    ['N° Palette', 'Type', 'Code Produit', 'LOT', 'Code-Lot', 'Référence', 'Date Embout.', 'Marché', 'Quantité', 'GTIN', 'SSCC', 'Ligne']
+  ];
+  session.forEach(p => {
+    ['pf','vs','vsop','xo'].forEach(t => {
+      const d = p[t];
+      detailRows.push([
+        p.num, t.toUpperCase(),
+        d?.product_code || '', d?.lot || '', concat(d),
+        d?.product_ref || '', d?.bottling_date || '',
+        d?.market || '', d?.quantity || '',
+        d?.gtin || '', d?.sscc || '', d?.ligne || ''
+      ]);
+    });
+    detailRows.push([]);
+  });
+  const ws2 = XLSX.utils.aoa_to_sheet(detailRows);
+  ws2['!cols'] = [{wch:10},{wch:7},{wch:14},{wch:12},{wch:24},{wch:28},{wch:14},{wch:12},{wch:8},{wch:16},{wch:22},{wch:10}];
+  XLSX.utils.book_append_sheet(wb, ws2, 'Détail');
+
+  const fname = `tracabilite_session_${now.toISOString().slice(0,10)}_${session.length}palettes.xlsx`;
+  XLSX.writeFile(wb, fname);
+}
+
+// ─── Reset total ──────────────────────────────────────────────────────────────
+function confirmReset() {
+  if (!confirm(`Réinitialiser toute la session (${allPalettes.length + 1} palette(s)) ?`)) return;
+  STEPS.forEach(t => { if (streams[t]) stopCam(t); });
+  location.reload();
+}
+
+// ─── Drag & drop upload ───────────────────────────────────────────────────────
+STEPS.forEach(type => {
+  const ui = document.getElementById(`${type}-upload-ui`);
+  if (!ui) return;
+  ui.addEventListener('dragover', e => e.preventDefault());
+  ui.addEventListener('drop', e => {
+    e.preventDefault();
+    const file = e.dataTransfer.files[0];
+    if (file) handleFile({ target: { files: [file] } }, type);
+  });
+});
+</script>
+</body>
+</html>
