@@ -1,0 +1,2986 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Traçabilité Palettes — JHC v9</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
+
+:root {
+  --bg: #f4f3f0;
+  --surface: #ffffff;
+  --surface2: #f0eeea;
+  --border: #dddad4;
+  --border-strong: #c5c0b8;
+  --text: #1a1916;
+  --text-muted: #7a756c;
+  --accent: #1a1916;
+  --gold: #b8962e;
+  --gold-light: #f5edda;
+  --gold-border: #e0c878;
+  --vs-color: #1a5276;
+  --vs-bg: #eaf2fb;
+  --vs-border: #85b9d8;
+  --vsop-color: #7d1a4a;
+  --vsop-bg: #fceaf2;
+  --vsop-border: #d888aa;
+  --xo-color: #1a5c2e;
+  --xo-bg: #eafaf0;
+  --xo-border: #7ecda0;
+  --error-bg: #fdf0f0;
+  --error: #8b1a1a;
+  --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 4px 16px rgba(0,0,0,0.06);
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.06);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'IBM Plex Sans', sans-serif;
+  min-height: 100vh;
+}
+
+/* HEADER */
+header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  z-index: 300;
+}
+.logo { display: flex; align-items: center; gap: 10px; }
+.logo-badge {
+  background: var(--accent); color: white;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px; font-weight: 500;
+  padding: 4px 8px; border-radius: 4px; letter-spacing: 1px;
+}
+.logo-title { font-size: 13px; font-weight: 600; }
+.header-center {
+  display: flex; align-items: center; gap: 10px;
+}
+.palette-counter {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px; font-weight: 500;
+  background: var(--gold-light);
+  border: 1px solid var(--gold-border);
+  color: var(--gold);
+  padding: 4px 12px; border-radius: 20px; white-space: nowrap;
+}
+.header-clock {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px; color: var(--text-muted);
+  text-align: right; line-height: 1.5;
+}
+
+/* STICKY TOP BAND — header + progress + épuisement collés et fixes */
+.sticky-top {
+  position: sticky;
+  top: 0;
+  z-index: 300;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+/* PROGRESS */
+.progress-bar {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 24px;
+  display: flex;
+  align-items: center;
+}
+.step-item {
+  display: flex; align-items: center; gap: 8px;
+  flex: 1; position: relative;
+}
+.step-item:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: 120px; right: 0;
+  top: 50%; transform: translateY(-50%);
+  height: 2px; background: var(--border);
+  z-index: 0; transition: background 0.3s;
+}
+.step-item.done:not(:last-child)::after { background: var(--gold); }
+.step-num {
+  width: 28px; height: 28px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px; font-weight: 500;
+  border: 2px solid var(--border);
+  background: var(--surface); color: var(--text-muted);
+  flex-shrink: 0; transition: all 0.3s; position: relative; z-index: 1;
+}
+.step-item.active .step-num { border-color: var(--gold); background: var(--gold); color: white; }
+.step-item.done .step-num { border-color: var(--gold); background: var(--gold-light); color: var(--gold); }
+.step-info { flex-shrink: 0; }
+.step-label { font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+.step-item.active .step-label { color: var(--text); }
+.step-item.done .step-label { color: var(--gold); }
+.step-sublabel { font-size: 9px; color: var(--text-muted); font-family: 'IBM Plex Mono', monospace; }
+
+/* MAIN */
+.main { max-width: 960px; margin: 28px auto; padding: 0 24px; }
+
+/* STEP CARD */
+.step-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  margin-bottom: 16px;
+  overflow: hidden;
+  transition: opacity 0.3s;
+}
+.step-card.locked { opacity: 0.45; pointer-events: none; }
+
+.step-card-header {
+  padding: 16px 20px;
+  display: flex; align-items: center; justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+}
+.step-card-title { display: flex; align-items: center; gap: 10px; }
+.type-pill {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px; font-weight: 500;
+  padding: 3px 9px; border-radius: 20px; letter-spacing: 0.5px;
+}
+.pill-pf { background: var(--gold-light); color: var(--gold); border: 1px solid var(--gold-border); }
+.pill-vs { background: var(--vs-bg); color: var(--vs-color); border: 1px solid var(--vs-border); }
+.pill-vsop { background: var(--vsop-bg); color: var(--vsop-color); border: 1px solid var(--vsop-border); }
+.pill-xo { background: var(--xo-bg); color: var(--xo-color); border: 1px solid var(--xo-border); }
+.step-card-title h2 { font-size: 15px; font-weight: 700; }
+.step-status-badge {
+  font-family: 'IBM Plex Mono', monospace; font-size: 10px;
+  padding: 3px 9px; border-radius: 4px;
+  background: var(--surface2); color: var(--text-muted); border: 1px solid var(--border);
+}
+.step-status-badge.done { background: var(--xo-bg); color: var(--xo-color); border-color: var(--xo-border); }
+
+.step-card-body { padding: 20px; }
+
+/* SCAN ZONE */
+.scan-zone {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: 20px; align-items: start;
+}
+@media (max-width: 680px) { .scan-zone { grid-template-columns: 1fr; } }
+
+/* CAPTURE AREA */
+.capture-area { display: flex; flex-direction: column; gap: 10px; }
+
+.mode-tabs {
+  display: flex; background: var(--surface2);
+  border: 1px solid var(--border); border-radius: 7px;
+  padding: 3px; gap: 2px;
+}
+.mode-tab {
+  flex: 1; padding: 6px; border: none; background: transparent;
+  color: var(--text-muted); cursor: pointer; border-radius: 5px;
+  font-family: 'IBM Plex Sans', sans-serif; font-size: 12px; font-weight: 600;
+  transition: all 0.15s;
+}
+.mode-tab.active { background: var(--surface); color: var(--text); box-shadow: var(--shadow-sm); }
+
+/* CAMERA BOX */
+.camera-box {
+  position: relative; background: var(--surface2);
+  border: 2px dashed var(--border-strong);
+  border-radius: 10px; aspect-ratio: 4/3; overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+}
+.camera-box video, .camera-box canvas {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: cover; display: none;
+}
+.camera-placeholder {
+  display: flex; flex-direction: column;
+  align-items: center; gap: 6px;
+  color: var(--text-muted); padding: 16px; text-align: center;
+}
+.camera-placeholder .icon { font-size: 28px; }
+.camera-placeholder p { font-size: 11px; line-height: 1.5; }
+
+/* SCAN LOADING */
+.scan-loading {
+  position: absolute; inset: 0;
+  background: rgba(244,243,240,0.88);
+  display: none; align-items: center; justify-content: center;
+  flex-direction: column; gap: 8px; z-index: 10;
+}
+.scan-loading.active { display: flex; }
+.spinner {
+  width: 28px; height: 28px;
+  border: 3px solid var(--border); border-top-color: var(--gold);
+  border-radius: 50%; animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinner-text { font-size: 11px; color: var(--text-muted); }
+
+/* BUTTONS */
+.btn {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 9px 14px;
+  border: 1px solid var(--border); border-radius: 7px;
+  background: var(--surface); color: var(--text);
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 12px; font-weight: 600;
+  cursor: pointer; transition: all 0.15s; width: 100%;
+}
+.btn:hover:not(:disabled) { background: var(--surface2); border-color: var(--border-strong); }
+.btn:disabled { opacity: 0.38; cursor: not-allowed; }
+
+.btn-primary { background: var(--accent); border-color: var(--accent); color: white; }
+.btn-primary:hover:not(:disabled) { background: #2d2d2d; }
+
+.btn-capture-live {
+  background: var(--surface2); border: 2px solid var(--accent);
+  color: var(--accent); font-size: 13px; padding: 11px;
+}
+
+.btn-gold {
+  background: var(--gold); border-color: var(--gold); color: white;
+  font-size: 14px; padding: 13px 20px;
+}
+.btn-gold:hover:not(:disabled) { background: #9e7d24; }
+
+.btn-next-palette {
+  background: #1a4a1a; border-color: #1a4a1a; color: white;
+  font-size: 14px; padding: 13px 20px;
+}
+.btn-next-palette:hover:not(:disabled) { background: #143d14; }
+
+.btn-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+
+/* UPLOAD */
+.upload-clickable {
+  background: var(--surface2); border: 2px dashed var(--border-strong);
+  border-radius: 10px; padding: 28px 16px; text-align: center;
+  cursor: pointer; transition: all 0.15s; aspect-ratio: 4/3;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 8px;
+}
+.upload-clickable:hover { border-color: var(--gold); background: var(--gold-light); }
+.upload-clickable .icon { font-size: 28px; }
+.upload-clickable p { font-size: 11px; color: var(--text-muted); line-height: 1.5; }
+.upload-clickable strong { color: var(--gold); }
+
+/* RESULT PANEL */
+.result-panel { display: flex; flex-direction: column; gap: 8px; }
+.result-placeholder {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; min-height: 180px;
+  color: var(--text-muted); gap: 6px; text-align: center;
+}
+.result-placeholder .icon { font-size: 24px; opacity: 0.35; }
+.result-placeholder p { font-size: 12px; }
+
+.result-fields {
+  border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
+}
+.result-field {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 12px; border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.result-field:last-child { border-bottom: none; }
+.result-field:nth-child(even) { background: var(--surface2); }
+.field-key {
+  font-family: 'IBM Plex Mono', monospace; font-size: 10px;
+  color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.8px; flex-shrink: 0;
+}
+.field-val {
+  font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+  color: var(--text); text-align: right; word-break: break-all; max-width: 65%;
+}
+.field-val.highlight { color: var(--gold); font-weight: 700; font-size: 13px; }
+.field-val.concat-val {
+  color: var(--accent); font-weight: 700; font-size: 12px;
+  background: var(--surface2); padding: 2px 6px; border-radius: 4px;
+  border: 1px solid var(--border-strong);
+}
+
+/* STATUS MSG */
+.status-msg {
+  font-size: 11px; padding: 7px 11px; border-radius: 6px;
+  border: 1px solid var(--border); background: var(--surface2);
+  color: var(--text-muted); font-family: 'IBM Plex Mono', monospace;
+}
+.status-msg.ok { background: var(--xo-bg); border-color: var(--xo-border); color: var(--xo-color); }
+.status-msg.err { background: var(--error-bg); border-color: #e8aaaa; color: var(--error); }
+.status-msg.loading { background: var(--gold-light); border-color: var(--gold-border); color: var(--gold); }
+
+/* EXPORT CARD */
+.export-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; box-shadow: var(--shadow); overflow: hidden;
+  transition: opacity 0.3s;
+}
+.export-card.locked { opacity: 0.4; pointer-events: none; }
+
+.export-card-header {
+  background: var(--accent); color: white;
+  padding: 16px 24px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.export-card-header h2 { font-size: 15px; font-weight: 700; }
+.export-card-header p { font-size: 11px; opacity: 0.65; }
+.export-card-body { padding: 20px; }
+
+/* SUMMARY */
+.sscc-display {
+  background: var(--gold-light); border: 1px solid var(--gold-border);
+  border-radius: 8px; padding: 12px 16px; margin-bottom: 14px;
+}
+.sscc-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); margin-bottom: 4px; }
+.sscc-value { font-family: 'IBM Plex Mono', monospace; font-size: 15px; font-weight: 700; color: var(--gold); letter-spacing: 1px; }
+
+.summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; }
+@media (max-width: 600px) { .summary-grid { grid-template-columns: repeat(2,1fr); } }
+.summary-item {
+  border: 1px solid var(--border); border-radius: 8px;
+  padding: 12px; background: var(--surface2); text-align: center;
+}
+.summary-type { font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 600; margin-bottom: 4px; }
+.summary-concat {
+  font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 700;
+  color: var(--text); word-break: break-all; line-height: 1.3;
+}
+.summary-concat.empty { color: var(--text-muted); font-size: 10px; }
+
+/* PALETTES TABLE */
+.palettes-section { margin-top: 24px; }
+.palettes-section h3 {
+  font-size: 12px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.8px; color: var(--text-muted); margin-bottom: 10px;
+}
+.palettes-table {
+  width: 100%; border-collapse: collapse;
+  border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
+  font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+}
+.palettes-table th {
+  background: var(--surface2); padding: 8px 12px; text-align: left;
+  font-size: 9px; text-transform: uppercase; letter-spacing: 0.8px;
+  color: var(--text-muted); border-bottom: 1px solid var(--border);
+}
+.palettes-table td {
+  padding: 9px 12px; border-bottom: 1px solid var(--border);
+  background: var(--surface); color: var(--text);
+}
+.palettes-table tr:last-child td { border-bottom: none; }
+.palettes-table tr:nth-child(even) td { background: var(--surface2); }
+.cell-pf { color: var(--gold); font-weight: 700; }
+.cell-vs { color: var(--vs-color); }
+.cell-vsop { color: var(--vsop-color); }
+.cell-xo { color: var(--xo-color); }
+
+.export-actions { display: flex; gap: 10px; align-items: center; margin-top: 16px; }
+
+/* ── QUANTITÉS ── */
+.qty-section {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 10px; padding: 16px; margin-bottom: 16px;
+}
+.qty-toggle-row { display: flex; align-items: center; justify-content: space-between; }
+.qty-toggle-label { font-size: 13px; font-weight: 600; color: var(--text); display: flex; align-items: center; gap: 8px; }
+.qty-badge-incomplete {
+  font-family: 'IBM Plex Mono', monospace; font-size: 10px;
+  background: #fff3cd; border: 1px solid #ffc107;
+  color: #856404; padding: 2px 7px; border-radius: 10px; display: none;
+}
+.qty-badge-incomplete.visible { display: inline; }
+.toggle-switch { position: relative; width: 44px; height: 24px; flex-shrink: 0; }
+.toggle-switch input { opacity: 0; width: 0; height: 0; }
+.toggle-slider {
+  position: absolute; inset: 0; background: var(--border-strong);
+  border-radius: 24px; cursor: pointer; transition: .2s;
+}
+.toggle-slider::before {
+  content: ''; position: absolute; width: 18px; height: 18px;
+  left: 3px; bottom: 3px; background: white; border-radius: 50%; transition: .2s;
+}
+.toggle-switch input:checked + .toggle-slider { background: #e67e22; }
+.toggle-switch input:checked + .toggle-slider::before { transform: translateX(20px); }
+.qty-fields { display: none; margin-top: 14px; border-top: 1px solid var(--border); padding-top: 14px; }
+.qty-fields.visible { display: block; }
+.qty-note { font-size: 11px; color: var(--text-muted); margin-bottom: 12px; line-height: 1.5; }
+.qty-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+@media (max-width: 600px) { .qty-grid { grid-template-columns: repeat(2,1fr); } }
+.qty-item { display: flex; flex-direction: column; gap: 4px; }
+.qty-item-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; }
+.qty-item-sublabel { font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: var(--text-muted); }
+.qty-input {
+  font-family: 'IBM Plex Mono', monospace; font-size: 16px; font-weight: 700;
+  padding: 9px 10px; border: 1px solid var(--border); border-radius: 7px;
+  background: var(--surface); color: var(--text); text-align: center;
+  width: 100%; outline: none; transition: border-color 0.15s;
+}
+.qty-input:focus { border-color: var(--gold); }
+.qty-input.warning { border-color: #e67e22; background: #fff8f0; color: #e67e22; }
+.qty-ref { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--text-muted); text-align: center; }
+.qty-ref-val { color: var(--text); font-weight: 600; }
+
+#hidden-canvas { display: none; }
+
+/* ── ÉPUISEMENT SF ── */
+.epuisement-bar {
+  background: var(--surface2); border-bottom: 1px solid var(--border);
+  padding: 8px 24px; display: flex; align-items: center; gap: 12px;
+  flex-wrap: wrap;
+}
+.epuisement-title {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 1px; color: var(--text-muted); flex-shrink: 0;
+}
+.epuisement-items { display: flex; gap: 10px; flex-wrap: wrap; flex: 1; }
+.epu-item {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 6px 12px; min-width: 160px;
+}
+.epu-label {
+  font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 700;
+  flex-shrink: 0; min-width: 36px;
+}
+.epu-bar-wrap {
+  flex: 1; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden;
+}
+.epu-bar-fill {
+  height: 100%; border-radius: 3px; transition: width 0.4s ease;
+  background: var(--xo-color);
+}
+.epu-text {
+  font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 600;
+  flex-shrink: 0; min-width: 60px; text-align: right; color: var(--text);
+}
+.epu-item.alerte { border-color: #e67e22; background: #fff8f0; }
+.epu-item.alerte .epu-bar-fill { background: #e67e22; }
+.epu-item.alerte .epu-text { color: #e67e22; }
+.epu-item.rupture { border-color: var(--error); background: var(--error-bg); }
+.epu-item.rupture .epu-bar-fill { background: var(--error); }
+.epu-item.rupture .epu-text { color: var(--error); }
+.epu-item.inactive { opacity: 0.4; }
+.epu-item:not(.inactive) { cursor: pointer; }
+.epu-item:not(.inactive):hover { border-color: var(--border-strong); background: var(--surface); }
+
+.epu-click-hint {
+  flex-shrink: 0; font-size: 12px; color: var(--text-muted);
+  opacity: 0; transition: opacity 0.15s;
+}
+.epu-item:not(.inactive):hover .epu-click-hint { opacity: 1; }
+.epu-item.alerte .epu-click-hint,
+.epu-item.rupture .epu-click-hint { opacity: 1; color: var(--error); font-weight: 700; animation: pulse-btn 1.2s ease-in-out infinite; }
+
+/* Modal palette rompue */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 5000;
+  background: rgba(26,25,22,0.55); backdrop-filter: blur(3px);
+  display: none; align-items: center; justify-content: center;
+}
+.modal-overlay.active { display: flex; }
+.modal-card {
+  background: var(--surface); border-radius: 14px;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.2);
+  padding: 28px; width: 100%; max-width: 400px; margin: 20px;
+}
+.modal-icon { font-size: 32px; margin-bottom: 10px; }
+.modal-title { font-size: 16px; font-weight: 700; margin-bottom: 6px; }
+.modal-body { font-size: 13px; color: var(--text-muted); line-height: 1.6; margin-bottom: 18px; }
+.modal-body strong { color: var(--text); }
+.modal-field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 18px; }
+.modal-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-muted); }
+.modal-input {
+  font-family: 'IBM Plex Mono', monospace; font-size: 22px; font-weight: 700;
+  padding: 12px; border: 2px solid var(--gold-border); border-radius: 8px;
+  background: var(--gold-light); color: var(--text); text-align: center;
+  width: 100%; outline: none;
+}
+.modal-input:focus { border-color: var(--gold); }
+.modal-hint { font-size: 11px; color: var(--text-muted); text-align: center; }
+.modal-actions { display: flex; gap: 8px; }
+.btn-modal-confirm {
+  flex: 1; padding: 12px; background: var(--accent); border: none;
+  border-radius: 8px; color: white; font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 14px; font-weight: 700; cursor: pointer; transition: background 0.15s;
+}
+.btn-modal-confirm:hover { background: #333; }
+.btn-modal-cancel {
+  padding: 12px 16px; background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 8px; color: var(--text-muted); font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 13px; font-weight: 600; cursor: pointer;
+}
+
+/* ── LOGIN SCREEN ── */
+#login-screen {
+  position: fixed; inset: 0; z-index: 9999;
+  background: var(--bg);
+  display: flex; align-items: center; justify-content: center;
+}
+.login-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: 0 4px 40px rgba(0,0,0,0.12);
+  padding: 40px 36px;
+  width: 100%; max-width: 420px;
+  display: flex; flex-direction: column; gap: 24px;
+}
+.login-logo {
+  display: flex; align-items: center; gap: 12px;
+}
+.login-logo .logo-badge {
+  background: var(--accent); color: white;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 13px; font-weight: 500;
+  padding: 5px 10px; border-radius: 5px; letter-spacing: 1px;
+}
+.login-logo .logo-title { font-size: 15px; font-weight: 700; }
+.login-desc {
+  font-size: 13px; color: var(--text-muted); line-height: 1.6;
+}
+.login-field { display: flex; flex-direction: column; gap: 6px; }
+.login-label {
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.8px; color: var(--text-muted);
+}
+.login-input {
+  font-family: 'IBM Plex Mono', monospace; font-size: 13px;
+  padding: 11px 14px;
+  border: 1px solid var(--border); border-radius: 8px;
+  background: var(--surface2); color: var(--text);
+  outline: none; transition: border-color 0.15s; width: 100%;
+}
+.login-input:focus { border-color: var(--gold); background: var(--surface); }
+.login-input::placeholder { color: var(--text-muted); }
+.login-input.err { border-color: #e8aaaa; background: var(--error-bg); }
+.login-error {
+  font-size: 11px; color: var(--error);
+  font-family: 'IBM Plex Mono', monospace;
+  display: none;
+}
+.login-error.visible { display: block; }
+.btn-login {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 13px 20px;
+  background: var(--accent); border: none; border-radius: 8px;
+  color: white; font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 14px; font-weight: 700; cursor: pointer; transition: all 0.15s;
+}
+.btn-login:hover { background: #2d2d2d; }
+.btn-login:disabled { opacity: 0.45; cursor: not-allowed; }
+.login-note {
+  font-size: 10px; color: var(--text-muted); line-height: 1.5;
+  padding-top: 4px; border-top: 1px solid var(--border);
+}
+.login-note a { color: var(--gold); text-decoration: none; }
+.login-note a:hover { text-decoration: underline; }
+.login-spinner { display: none; }
+.login-spinner.active { display: inline-block; }
+.mini-spinner {
+  width: 14px; height: 14px;
+  border: 2px solid rgba(255,255,255,0.4); border-top-color: white;
+  border-radius: 50%; animation: spin 0.7s linear infinite;
+  display: inline-block;
+}
+</style>
+</head>
+<body>
+
+<canvas id="hidden-canvas"></canvas>
+
+<!-- ── ÉCRAN DE CONNEXION ── -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="logo-badge">JHC</div>
+      <div class="logo-title">Traçabilité Palettes · Hennessy</div>
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:500;background:var(--surface2);border:1px solid var(--border);color:var(--text-muted);padding:3px 8px;border-radius:4px;letter-spacing:0.5px;">v9</div>
+    </div>
+    <p class="login-desc">
+      Saisissez votre clé API Anthropic pour démarrer.<br>
+      Elle est conservée sur cet appareil et pré-remplie automatiquement.
+    </p>
+    <div class="login-field">
+      <label class="login-label" for="api-key-input">Clé API Anthropic</label>
+      <input
+        type="password"
+        id="api-key-input"
+        class="login-input"
+        placeholder="sk-ant-api03-..."
+        autocomplete="off"
+        spellcheck="false"
+        onkeydown="if(event.key==='Enter') submitKey()"
+      >
+      <div class="login-error" id="login-error">Clé invalide — vérifiez qu'elle commence par sk-ant-</div>
+    </div>
+    <button class="btn-login" id="btn-login" onclick="submitKey()">
+      <span class="login-spinner" id="login-spinner"><span class="mini-spinner"></span></span>
+      Accéder à l'application
+    </button>
+    <p class="login-note">
+      Obtenez votre clé sur <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a> → API Keys.<br>
+      La clé est sauvegardée sur cet appareil via localStorage. <a href="#" onclick="forgetKey();return false;" style="color:var(--error);">Oublier la clé</a>
+    </p>
+  </div>
+</div>
+
+<div class="sticky-top">
+<header>
+  <div class="logo">
+    <div class="logo-badge">JHC</div>
+    <div class="logo-title">Traçabilité Palettes · Hennessy</div>
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:500;background:var(--surface2);border:1px solid var(--border);color:var(--text-muted);padding:3px 8px;border-radius:4px;letter-spacing:0.5px;"> v49</div>
+  </div>
+  <div class="header-center" style="display:flex;align-items:center;gap:10px;">
+    <div class="palette-counter" id="palette-counter">Palette #1</div>
+    <button id="btn-no-change-sf"
+      onclick="nextPaletteNoChangeSF()"
+      style="display:none;font-family:'IBM Plex Sans',sans-serif;font-size:11px;font-weight:700;
+             padding:6px 12px;border-radius:8px;border:2px solid #1a5c2e;
+             background:#e8f4e8;color:#1a5c2e;cursor:pointer;white-space:nowrap;">
+      ⚡ Pas de changement SF &nbsp;·&nbsp; <span style="font-size:10px;font-weight:400">Scanner PF uniquement</span>
+    </button>
+    <button onclick="exportExcel()" id="btn-export-header"
+      style="display:inline-block;font-family:'IBM Plex Sans',sans-serif;font-size:11px;font-weight:700;
+             padding:6px 12px;border-radius:8px;border:2px solid var(--gold);
+             background:var(--gold-light);color:var(--gold);cursor:pointer;white-space:nowrap;">
+      ⬇ Exporter Excel
+    </button>
+    <button onclick="demanderNouvelOF()" id="btn-nouvel-of"
+      style="display:none;font-family:'IBM Plex Sans',sans-serif;font-size:11px;font-weight:700;
+             padding:6px 12px;border-radius:8px;border:2px solid var(--vs-color);
+             background:var(--vs-bg);color:var(--vs-color);cursor:pointer;white-space:nowrap;">
+      📋 Nouvel OF
+    </button>
+  </div>
+  <div class="header-clock" id="clock">—</div>
+</header>
+
+<!-- ── BARRE ÉPUISEMENT SF ── -->
+<div class="epuisement-bar" id="epuisement-bar">
+  <div class="epuisement-title">Stock SF</div>
+  <div class="epuisement-items">
+    <div class="epu-item inactive" id="epu-vs" onclick="clicCompteurSF('vs')" style="cursor:pointer" title="Cliquez pour changer la palette VS">
+      <span class="epu-label" style="color:var(--vs-color)">VS</span>
+      <div class="epu-bar-wrap"><div class="epu-bar-fill" id="epu-fill-vs" style="width:100%;background:var(--vs-color)"></div></div>
+      <span class="epu-text" id="epu-text-vs">—</span>
+      <span class="epu-click-hint" id="epu-hint-vs">↺</span>
+      <button onclick="declarerRebut('vs',event)" title="Écarter 1 cs en rebut"
+        style="flex-shrink:0;font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;
+               border:1px solid #c0392b;background:#fdf0f0;color:#c0392b;cursor:pointer;
+               font-family:'IBM Plex Sans',sans-serif;line-height:1.4;">
+        − 1 cs rebut
+      </button>
+    </div>
+    <div class="epu-item inactive" id="epu-vsop" onclick="clicCompteurSF('vsop')" style="cursor:pointer" title="Cliquez pour changer la palette VSOP">
+      <span class="epu-label" style="color:var(--vsop-color)">VSOP</span>
+      <div class="epu-bar-wrap"><div class="epu-bar-fill" id="epu-fill-vsop" style="width:100%;background:var(--vsop-color)"></div></div>
+      <span class="epu-text" id="epu-text-vsop">—</span>
+      <span class="epu-click-hint" id="epu-hint-vsop">↺</span>
+      <button onclick="declarerRebut('vsop',event)" title="Écarter 1 cs en rebut"
+        style="flex-shrink:0;font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;
+               border:1px solid #c0392b;background:#fdf0f0;color:#c0392b;cursor:pointer;
+               font-family:'IBM Plex Sans',sans-serif;line-height:1.4;">
+        − 1 cs rebut
+      </button>
+    </div>
+    <div class="epu-item inactive" id="epu-xo" onclick="clicCompteurSF('xo')" style="cursor:pointer" title="Cliquez pour changer la palette XO">
+      <span class="epu-label" style="color:var(--xo-color)">XO</span>
+      <div class="epu-bar-wrap"><div class="epu-bar-fill" id="epu-fill-xo" style="width:100%;background:var(--xo-color)"></div></div>
+      <span class="epu-text" id="epu-text-xo">—</span>
+      <span class="epu-click-hint" id="epu-hint-xo">↺</span>
+      <button onclick="declarerRebut('xo',event)" title="Écarter 1 cs en rebut"
+        style="flex-shrink:0;font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;
+               border:1px solid #c0392b;background:#fdf0f0;color:#c0392b;cursor:pointer;
+               font-family:'IBM Plex Sans',sans-serif;line-height:1.4;">
+        − 1 cs rebut
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── MINI MODAL CHANGEMENT SF ── -->
+<div id="modal-sf-change" style="display:none;position:fixed;inset:0;z-index:4000;background:rgba(26,25,22,0.5);backdrop-filter:blur(3px);align-items:center;justify-content:center;">
+  <div style="background:var(--surface);border-radius:14px;box-shadow:0 8px 40px rgba(0,0,0,0.2);padding:24px;width:100%;max-width:360px;margin:20px;">
+    <div style="font-size:22px;margin-bottom:8px" id="modal-sf-icon">🔄</div>
+    <div style="font-size:15px;font-weight:700;margin-bottom:8px" id="modal-sf-title">Nouvelle palette SF</div>
+    <div style="font-size:13px;color:var(--text-muted);line-height:1.6;margin-bottom:20px" id="modal-sf-body">—</div>
+    <div style="display:flex;gap:8px;">
+      <button onclick="fermerModalSF()" style="flex:1;padding:11px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-family:'IBM Plex Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;color:var(--text-muted)">Annuler</button>
+      <button onclick="confirmerChangementSF()" style="flex:2;padding:11px;background:var(--accent);border:none;border-radius:8px;color:white;font-family:'IBM Plex Sans',sans-serif;font-size:13px;font-weight:700;cursor:pointer" id="modal-sf-confirm">↺ Scanner nouvelle palette</button>
+    </div>
+  </div>
+</div>
+
+<div class="progress-bar" id="progress-bar">
+  <div class="step-item active" id="prog-0">
+    <div class="step-num">1</div>
+    <div class="step-info"><div class="step-label">OF</div><div class="step-sublabel">Ordre Fabrication</div></div>
+  </div>
+  <div class="step-item" id="prog-1">
+    <div class="step-num">2</div>
+    <div class="step-info"><div class="step-label">SF VS</div><div class="step-sublabel">Very Special</div></div>
+  </div>
+  <div class="step-item" id="prog-2">
+    <div class="step-num">3</div>
+    <div class="step-info"><div class="step-label">SF VSOP</div><div class="step-sublabel">Very Superior</div></div>
+  </div>
+  <div class="step-item" id="prog-3">
+    <div class="step-num">4</div>
+    <div class="step-info"><div class="step-label">SF XO</div><div class="step-sublabel">Extra Old</div></div>
+  </div>
+  <div class="step-item" id="prog-4">
+    <div class="step-num">5</div>
+    <div class="step-info"><div class="step-label">PF</div><div class="step-sublabel">Produit Fini</div></div>
+  </div>
+  <div class="step-item" id="prog-5">
+    <div class="step-num">6</div>
+    <div class="step-info"><div class="step-label">Export</div><div class="step-sublabel">Excel</div></div>
+  </div>
+</div>
+</div><!-- /sticky-top -->
+
+<div class="main">
+
+  <!-- ── OF ── -->
+  <div class="step-card" id="card-of">
+    <div class="step-card-header">
+      <div class="step-card-title">
+        <span class="type-pill" style="background:#f0f0f0;color:#555;border:1px solid #ccc">OF</span>
+        <h2>Étape 1 — Ordre de Fabrication client</h2>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <div class="step-status-badge" id="status-of">En attente</div>
+        <button id="btn-annuler-of" onclick="annulerScan('of')"
+          style="display:none;font-size:10px;font-weight:700;padding:3px 8px;
+                 border-radius:5px;border:1px solid #e8aaaa;background:#fdf0f0;
+                 color:var(--error);cursor:pointer;font-family:'IBM Plex Sans',sans-serif;">
+          ✕ Annuler
+        </button>
+      </div>
+    </div>
+    <div class="step-card-body">
+      <div class="scan-zone">
+        <div class="capture-area">
+          <div class="mode-tabs">
+            <button class="mode-tab active" onclick="setMode('of','camera')">📷 Caméra</button>
+            <button class="mode-tab" onclick="setMode('of','upload')">📁 Fichier</button>
+          </div>
+          <div id="of-camera-ui">
+            <div class="camera-box">
+              <div class="camera-placeholder" id="ph-of"><div class="icon">📄</div><p>Pointez vers la page OF client</p></div>
+              <video id="vid-of" autoplay playsinline></video>
+              <canvas id="cnv-of"></canvas>
+              <div class="scan-loading" id="loading-of"><div class="spinner"></div><div class="spinner-text">Analyse IA…</div></div>
+            </div>
+            <div class="btn-grid-2" style="margin-top:8px">
+              <button class="btn" onclick="startCam('of')" id="start-of">▶ Démarrer</button>
+              <button class="btn" onclick="stopCam('of')" id="stop-of" disabled>■ Arrêter</button>
+            </div>
+            <button class="btn btn-capture-live" onclick="capture('of')" id="cap-of" disabled style="margin-top:7px">⊙ Capturer → analyse auto</button>
+          </div>
+          <div id="of-upload-ui" style="display:none">
+            <label for="file-of"><div class="upload-clickable"><div class="icon">🖼️</div><p><strong>Cliquez</strong> ou glissez la page OF<br><span style="font-size:10px">Analyse auto dès le chargement</span></p></div></label>
+            <input type="file" id="file-of" accept="image/*" onchange="handleFile(event,'of')" style="display:none">
+            <div class="camera-box" id="upload-preview-of" style="display:none;margin-top:8px">
+              <canvas id="cnv-upload-of" style="width:100%;height:100%;object-fit:contain;display:block;"></canvas>
+              <div class="scan-loading" id="loading-upload-of"><div class="spinner"></div><div class="spinner-text">Analyse IA…</div></div>
+            </div>
+          </div>
+          <div class="status-msg" id="msg-of">Démarrez la caméra ou chargez une photo</div>
+        </div>
+        <div class="result-panel" id="result-of">
+          <div class="result-placeholder"><div class="icon">📋</div><p>Numéro OF, références et données<br>de palettisation apparaîtront ici</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── VS ── -->
+  <div class="step-card locked" id="card-vs">
+    <div class="step-card-header">
+      <div class="step-card-title">
+        <span class="type-pill pill-vs">SF VS</span>
+        <h2>Étape 2 — Semi-Fini Very Special</h2>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <div class="step-status-badge" id="status-vs">En attente</div>
+        <button id="btn-annuler-vs" onclick="annulerScan('vs')"
+          style="display:none;font-size:10px;font-weight:700;padding:3px 8px;
+                 border-radius:5px;border:1px solid #e8aaaa;background:#fdf0f0;
+                 color:var(--error);cursor:pointer;font-family:'IBM Plex Sans',sans-serif;">
+          ✕ Annuler
+        </button>
+      </div>
+    </div>
+    <div class="step-card-body">
+      <div class="scan-zone">
+        <div class="capture-area">
+          <div class="mode-tabs">
+            <button class="mode-tab active" onclick="setMode('vs','camera')">📷 Caméra</button>
+            <button class="mode-tab" onclick="setMode('vs','upload')">📁 Fichier</button>
+          </div>
+          <div id="vs-camera-ui">
+            <div class="camera-box">
+              <div class="camera-placeholder" id="ph-vs"><div class="icon">🔵</div><p>Fiche palette SF VS<br><small style="color:#e67e22">⚠️ Verrou actif — type vérifié par IA</small></p></div>
+              <video id="vid-vs" autoplay playsinline></video>
+              <canvas id="cnv-vs"></canvas>
+              <div class="scan-loading" id="loading-vs"><div class="spinner"></div><div class="spinner-text">Analyse IA…</div></div>
+            </div>
+            <div class="btn-grid-2" style="margin-top:8px">
+              <button class="btn" onclick="startCam('vs')" id="start-vs">▶ Démarrer</button>
+              <button class="btn" onclick="stopCam('vs')" id="stop-vs" disabled>■ Arrêter</button>
+            </div>
+            <button class="btn btn-capture-live" onclick="capture('vs')" id="cap-vs" disabled style="margin-top:7px">⊙ Capturer → analyse auto</button>
+          </div>
+          <div id="vs-upload-ui" style="display:none">
+            <label for="file-vs"><div class="upload-clickable"><div class="icon">🖼️</div><p><strong>Cliquez</strong> ou glissez une photo<br><span style="font-size:10px">Analyse auto dès le chargement</span></p></div></label>
+            <input type="file" id="file-vs" accept="image/*" onchange="handleFile(event,'vs')" style="display:none">
+            <div class="camera-box" id="upload-preview-vs" style="display:none;margin-top:8px">
+              <canvas id="cnv-upload-vs" style="width:100%;height:100%;object-fit:contain;display:block;"></canvas>
+              <div class="scan-loading" id="loading-upload-vs"><div class="spinner"></div><div class="spinner-text">Analyse IA…</div></div>
+            </div>
+          </div>
+          <div class="status-msg" id="msg-vs">Démarrez la caméra ou chargez une photo</div>
+        </div>
+        <div class="result-panel" id="result-vs">
+          <div class="result-placeholder"><div class="icon">📋</div><p>Les données apparaîtront<br>après capture</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── VSOP ── -->
+  <div class="step-card locked" id="card-vsop">
+    <div class="step-card-header">
+      <div class="step-card-title">
+        <span class="type-pill pill-vsop">SF VSOP</span>
+        <h2>Étape 3 — Semi-Fini Very Superior Old Pale</h2>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <div class="step-status-badge" id="status-vsop">En attente</div>
+        <button id="btn-annuler-vsop" onclick="annulerScan('vsop')"
+          style="display:none;font-size:10px;font-weight:700;padding:3px 8px;
+                 border-radius:5px;border:1px solid #e8aaaa;background:#fdf0f0;
+                 color:var(--error);cursor:pointer;font-family:'IBM Plex Sans',sans-serif;">
+          ✕ Annuler
+        </button>
+      </div>
+    </div>
+    <div class="step-card-body">
+      <div class="scan-zone">
+        <div class="capture-area">
+          <div class="mode-tabs">
+            <button class="mode-tab active" onclick="setMode('vsop','camera')">📷 Caméra</button>
+            <button class="mode-tab" onclick="setMode('vsop','upload')">📁 Fichier</button>
+          </div>
+          <div id="vsop-camera-ui">
+            <div class="camera-box">
+              <div class="camera-placeholder" id="ph-vsop"><div class="icon">🟣</div><p>Fiche palette SF VSOP<br><small style="color:#e67e22">⚠️ Verrou actif — type vérifié par IA</small></p></div>
+              <video id="vid-vsop" autoplay playsinline></video>
+              <canvas id="cnv-vsop"></canvas>
+              <div class="scan-loading" id="loading-vsop"><div class="spinner"></div><div class="spinner-text">Analyse IA…</div></div>
+            </div>
+            <div class="btn-grid-2" style="margin-top:8px">
+              <button class="btn" onclick="startCam('vsop')" id="start-vsop">▶ Démarrer</button>
+              <button class="btn" onclick="stopCam('vsop')" id="stop-vsop" disabled>■ Arrêter</button>
+            </div>
+            <button class="btn btn-capture-live" onclick="capture('vsop')" id="cap-vsop" disabled style="margin-top:7px">⊙ Capturer → analyse auto</button>
+          </div>
+          <div id="vsop-upload-ui" style="display:none">
+            <label for="file-vsop"><div class="upload-clickable"><div class="icon">🖼️</div><p><strong>Cliquez</strong> ou glissez une photo<br><span style="font-size:10px">Analyse auto dès le chargement</span></p></div></label>
+            <input type="file" id="file-vsop" accept="image/*" onchange="handleFile(event,'vsop')" style="display:none">
+            <div class="camera-box" id="upload-preview-vsop" style="display:none;margin-top:8px">
+              <canvas id="cnv-upload-vsop" style="width:100%;height:100%;object-fit:contain;display:block;"></canvas>
+              <div class="scan-loading" id="loading-upload-vsop"><div class="spinner"></div><div class="spinner-text">Analyse IA…</div></div>
+            </div>
+          </div>
+          <div class="status-msg" id="msg-vsop">Démarrez la caméra ou chargez une photo</div>
+        </div>
+        <div class="result-panel" id="result-vsop">
+          <div class="result-placeholder"><div class="icon">📋</div><p>Les données apparaîtront<br>après capture</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── XO ── -->
+  <div class="step-card locked" id="card-xo">
+    <div class="step-card-header">
+      <div class="step-card-title">
+        <span class="type-pill pill-xo">SF XO</span>
+        <h2>Étape 4 — Semi-Fini Extra Old</h2>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <div class="step-status-badge" id="status-xo">En attente</div>
+        <button id="btn-annuler-xo" onclick="annulerScan('xo')"
+          style="display:none;font-size:10px;font-weight:700;padding:3px 8px;
+                 border-radius:5px;border:1px solid #e8aaaa;background:#fdf0f0;
+                 color:var(--error);cursor:pointer;font-family:'IBM Plex Sans',sans-serif;">
+          ✕ Annuler
+        </button>
+      </div>
+    </div>
+    <div class="step-card-body">
+      <div class="scan-zone">
+        <div class="capture-area">
+          <div class="mode-tabs">
+            <button class="mode-tab active" onclick="setMode('xo','camera')">📷 Caméra</button>
+            <button class="mode-tab" onclick="setMode('xo','upload')">📁 Fichier</button>
+          </div>
+          <div id="xo-camera-ui">
+            <div class="camera-box">
+              <div class="camera-placeholder" id="ph-xo"><div class="icon">🟢</div><p>Fiche palette SF XO<br><small style="color:#e67e22">⚠️ Verrou actif — type vérifié par IA</small></p></div>
+              <video id="vid-xo" autoplay playsinline></video>
+              <canvas id="cnv-xo"></canvas>
+              <div class="scan-loading" id="loading-xo"><div class="spinner"></div><div class="spinner-text">Analyse IA…</div></div>
+            </div>
+            <div class="btn-grid-2" style="margin-top:8px">
+              <button class="btn" onclick="startCam('xo')" id="start-xo">▶ Démarrer</button>
+              <button class="btn" onclick="stopCam('xo')" id="stop-xo" disabled>■ Arrêter</button>
+            </div>
+            <button class="btn btn-capture-live" onclick="capture('xo')" id="cap-xo" disabled style="margin-top:7px">⊙ Capturer → analyse auto</button>
+          </div>
+          <div id="xo-upload-ui" style="display:none">
+            <label for="file-xo"><div class="upload-clickable"><div class="icon">🖼️</div><p><strong>Cliquez</strong> ou glissez une photo<br><span style="font-size:10px">Analyse auto dès le chargement</span></p></div></label>
+            <input type="file" id="file-xo" accept="image/*" onchange="handleFile(event,'xo')" style="display:none">
+            <div class="camera-box" id="upload-preview-xo" style="display:none;margin-top:8px">
+              <canvas id="cnv-upload-xo" style="width:100%;height:100%;object-fit:contain;display:block;"></canvas>
+              <div class="scan-loading" id="loading-upload-xo"><div class="spinner"></div><div class="spinner-text">Analyse IA…</div></div>
+            </div>
+          </div>
+          <div class="status-msg" id="msg-xo">Démarrez la caméra ou chargez une photo</div>
+        </div>
+        <div class="result-panel" id="result-xo">
+          <div class="result-placeholder"><div class="icon">📋</div><p>Les données apparaîtront<br>après capture</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── PF ── -->
+  <div class="step-card locked" id="card-pf">
+    <div class="step-card-header">
+      <div class="step-card-title">
+        <span class="type-pill pill-pf">PF</span>
+        <h2>Étape 5 — Produit Fini</h2>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <div class="step-status-badge" id="status-pf">En attente</div>
+        <button id="btn-annuler-pf" onclick="annulerScan('pf')"
+          style="display:none;font-size:10px;font-weight:700;padding:3px 8px;
+                 border-radius:5px;border:1px solid #e8aaaa;background:#fdf0f0;
+                 color:var(--error);cursor:pointer;font-family:'IBM Plex Sans',sans-serif;">
+          ✕ Annuler
+        </button>
+      </div>
+    </div>
+    <div class="step-card-body">
+      <div class="scan-zone">
+        <div class="capture-area">
+          <div class="mode-tabs">
+            <button class="mode-tab active" onclick="setMode('pf','camera')">📷 Caméra</button>
+            <button class="mode-tab" onclick="setMode('pf','upload')">📁 Fichier</button>
+          </div>
+          <div id="pf-camera-ui">
+            <div class="camera-box">
+              <div class="camera-placeholder" id="ph-pf"><div class="icon">📦</div><p>Fiche palette Produit Fini<br><small style="color:#e67e22">⚠️ Verrou actif — type vérifié par IA</small></p></div>
+              <video id="vid-pf" autoplay playsinline></video>
+              <canvas id="cnv-pf"></canvas>
+              <div class="scan-loading" id="loading-pf"><div class="spinner"></div><div class="spinner-text">Analyse IA…</div></div>
+            </div>
+            <div class="btn-grid-2" style="margin-top:8px">
+              <button class="btn" onclick="startCam('pf')" id="start-pf">▶ Démarrer</button>
+              <button class="btn" onclick="stopCam('pf')" id="stop-pf" disabled>■ Arrêter</button>
+            </div>
+            <button class="btn btn-capture-live" onclick="capture('pf')" id="cap-pf" disabled style="margin-top:7px">⊙ Capturer → analyse auto</button>
+          </div>
+          <div id="pf-upload-ui" style="display:none">
+            <label for="file-pf"><div class="upload-clickable"><div class="icon">🖼️</div><p><strong>Cliquez</strong> ou glissez une photo<br><span style="font-size:10px">Analyse auto dès le chargement</span></p></div></label>
+            <input type="file" id="file-pf" accept="image/*" onchange="handleFile(event,'pf')" style="display:none">
+            <div class="camera-box" id="upload-preview-pf" style="display:none;margin-top:8px">
+              <canvas id="cnv-upload-pf" style="width:100%;height:100%;object-fit:contain;display:block;"></canvas>
+              <div class="scan-loading" id="loading-upload-pf"><div class="spinner"></div><div class="spinner-text">Analyse IA…</div></div>
+            </div>
+          </div>
+          <div class="status-msg" id="msg-pf">Démarrez la caméra ou chargez une photo</div>
+        </div>
+        <div class="result-panel" id="result-pf">
+          <div class="result-placeholder"><div class="icon">📋</div><p>Les données apparaîtront<br>après capture</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── EXPORT ── -->
+  <div class="export-card" id="card-export">
+    <div class="export-card-header">
+      <div>
+        <h2>Étape 6 — Synthèse & Export</h2>
+        <p>Palette complète — tous les SF liés au PF</p>
+      </div>
+      <div style="font-size:22px">📊</div>
+    </div>
+    <div class="export-card-body">
+      <div class="sscc-display">
+        <div class="sscc-label">SSCC Palette PF</div>
+        <div class="sscc-value" id="export-sscc">—</div>
+      </div>
+      <div class="summary-grid">
+        <div class="summary-item">
+          <div class="summary-type" style="color:var(--gold)">PF</div>
+          <div class="summary-concat" id="sum-pf">—</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-type" style="color:var(--vs-color)">SF VS</div>
+          <div class="summary-concat" id="sum-vs">—</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-type" style="color:var(--vsop-color)">SF VSOP</div>
+          <div class="summary-concat" id="sum-vsop">—</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-type" style="color:var(--xo-color)">SF XO</div>
+          <div class="summary-concat" id="sum-xo">—</div>
+        </div>
+      </div>
+
+      <!-- Quantités -->
+      <div class="qty-section">
+        <div class="qty-toggle-row">
+          <div class="qty-toggle-label">
+            ⚠️ Palette incomplète
+            <span class="qty-badge-incomplete" id="badge-incomplete">INCOMPLET</span>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="toggle-incomplete" onchange="toggleIncomplete()">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="qty-fields" id="qty-fields">
+          <p class="qty-note">Saisissez les quantités réelles utilisées sur cette palette.<br><strong>Les cs SF saisis sont déduits exactement des compteurs</strong> (pas de calcul proportionnel).<br>Réf. fiche indiquée en dessous de chaque champ.</p>
+          <div class="qty-grid">
+            <div class="qty-item">
+              <div class="qty-item-label" style="color:var(--gold)">PF</div>
+              <div class="qty-item-sublabel" id="qty-sub-pf">—</div>
+              <input type="number" class="qty-input" id="qty-pf" min="0" placeholder="0" oninput="checkQtyWarning('pf')">
+              <div class="qty-ref">Réf. fiche : <span class="qty-ref-val" id="qty-ref-pf">—</span></div>
+            </div>
+            <div class="qty-item">
+              <div class="qty-item-label" style="color:var(--vs-color)">SF VS</div>
+              <div class="qty-item-sublabel" id="qty-sub-vs">—</div>
+              <input type="number" class="qty-input" id="qty-vs" min="0" placeholder="0" oninput="checkQtyWarning('vs')">
+              <div class="qty-ref">Réf. fiche : <span class="qty-ref-val" id="qty-ref-vs">—</span></div>
+            </div>
+            <div class="qty-item">
+              <div class="qty-item-label" style="color:var(--vsop-color)">SF VSOP</div>
+              <div class="qty-item-sublabel" id="qty-sub-vsop">—</div>
+              <input type="number" class="qty-input" id="qty-vsop" min="0" placeholder="0" oninput="checkQtyWarning('vsop')">
+              <div class="qty-ref">Réf. fiche : <span class="qty-ref-val" id="qty-ref-vsop">—</span></div>
+            </div>
+            <div class="qty-item">
+              <div class="qty-item-label" style="color:var(--xo-color)">SF XO</div>
+              <div class="qty-item-sublabel" id="qty-sub-xo">—</div>
+              <input type="number" class="qty-input" id="qty-xo" min="0" placeholder="0" oninput="checkQtyWarning('xo')">
+              <div class="qty-ref">Réf. fiche : <span class="qty-ref-val" id="qty-ref-xo">—</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Toutes les palettes -->
+      <div class="palettes-section">
+        <h3>Toutes les palettes de la session</h3>
+        <div style="overflow-x:auto">
+          <table class="palettes-table" id="palettes-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>SSCC PF</th>
+                <th>PF (code-lot)</th>
+                <th>Qté PF</th>
+                <th>SSCC SF VS</th>
+                <th>SF VS (code-lot)</th>
+                <th>Qté VS</th>
+                <th>SSCC SF VSOP</th>
+                <th>SF VSOP (code-lot)</th>
+                <th>Qté VSOP</th>
+                <th>SSCC SF XO</th>
+                <th>SF XO (code-lot)</th>
+                <th>Qté XO</th>
+                <th>Statut</th>
+                <th>Heure</th>
+              </tr>
+            </thead>
+            <tbody id="palettes-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="export-actions">
+        <button class="btn btn-gold" onclick="exportExcel()" style="flex:1">⬇ Exporter Excel (.xlsx)</button>
+        <button class="btn btn-next-palette" onclick="nextPalette(false)" style="flex:1">➜ Palette suivante</button>
+        <button class="btn" onclick="ouvrirModalPIN()" style="width:auto;padding:13px 14px;color:var(--error);border-color:rgba(224,90,90,0.3);" title="Réinitialiser (PIN requis)">🔒</button>
+      </div>
+    </div>
+  </div>
+
+  <div style="height:40px"></div>
+</div>
+
+<!-- ── MODAL PIN ── -->
+<div id="modal-pin" style="display:none;position:fixed;inset:0;z-index:6000;background:rgba(26,25,22,0.6);backdrop-filter:blur(4px);align-items:center;justify-content:center;">
+  <div style="background:var(--surface);border-radius:14px;box-shadow:0 8px 40px rgba(0,0,0,0.25);padding:28px;width:100%;max-width:340px;margin:20px;">
+    <div style="font-size:28px;margin-bottom:8px">🔒</div>
+    <div style="font-size:15px;font-weight:700;margin-bottom:6px">Code superviseur requis</div>
+    <div style="font-size:13px;color:var(--text-muted);margin-bottom:16px">Saisissez le code PIN pour réinitialiser la session.</div>
+    <input type="password" id="pin-input" maxlength="4" inputmode="numeric"
+      style="width:100%;font-family:'IBM Plex Mono',monospace;font-size:28px;font-weight:700;
+             padding:12px;border:2px solid var(--border);border-radius:8px;text-align:center;
+             letter-spacing:8px;outline:none;margin-bottom:8px;"
+      placeholder="••••" oninput="this.value=this.value.replace(/[^0-9]/g,'')"
+      onkeydown="if(event.key==='Enter')validerPIN()">
+    <div id="pin-error" style="display:none;color:var(--error);font-size:11px;margin-bottom:10px;font-family:'IBM Plex Mono',monospace;">Code incorrect</div>
+    <div style="display:flex;gap:8px;">
+      <button onclick="fermerModalPIN()" style="flex:1;padding:11px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-family:'IBM Plex Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;">Annuler</button>
+      <button onclick="validerPIN()" style="flex:2;padding:11px;background:var(--error);border:none;border-radius:8px;color:white;font-family:'IBM Plex Sans',sans-serif;font-size:13px;font-weight:700;cursor:pointer;">Réinitialiser</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── MODAL NOUVEL OF ── -->
+<div id="modal-nouvel-of" style="display:none;position:fixed;inset:0;z-index:6000;background:rgba(26,25,22,0.6);backdrop-filter:blur(4px);align-items:center;justify-content:center;">
+  <div style="background:var(--surface);border-radius:14px;box-shadow:0 8px 40px rgba(0,0,0,0.25);padding:28px;width:100%;max-width:380px;margin:20px;">
+    <div style="font-size:28px;margin-bottom:8px">📋</div>
+    <div style="font-size:15px;font-weight:700;margin-bottom:6px">Nouvel Ordre de Fabrication</div>
+    <div style="font-size:13px;color:var(--text-muted);margin-bottom:16px">Toutes les données de la session courante seront effacées. Un export Excel a été généré.</div>
+    <div style="display:flex;gap:8px;">
+      <button onclick="fermerModalNouvelOF()" style="flex:1;padding:11px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-family:'IBM Plex Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;">Annuler</button>
+      <button onclick="confirmerNouvelOF()" style="flex:2;padding:11px;background:var(--accent);border:none;border-radius:8px;color:white;font-family:'IBM Plex Sans',sans-serif;font-size:13px;font-weight:700;cursor:pointer;">✓ Démarrer nouvel OF</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── MODAL ÉDITION LIGNE PALETTE ── -->
+<div id="modal-edit-palette" style="display:none;position:fixed;inset:0;z-index:6000;background:rgba(26,25,22,.6);backdrop-filter:blur(4px);align-items:flex-start;justify-content:center;overflow-y:auto;padding:20px 0;">
+  <div style="background:var(--surface);border-radius:14px;box-shadow:0 8px 40px rgba(0,0,0,.25);padding:24px;width:100%;max-width:520px;margin:20px auto;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <div>
+        <div style="font-size:13px;font-weight:700" id="edit-modal-title">Modifier palette</div>
+        <div style="font-size:11px;color:var(--text-muted)">Cliquez sur un champ pour le modifier</div>
+      </div>
+      <button onclick="fermerModalEdit()" style="background:none;border:none;font-size:20px;color:var(--text-muted);cursor:pointer;">✕</button>
+    </div>
+
+    <!-- PF -->
+    <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text-muted);margin-bottom:6px;">Produit Fini (PF)</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;">
+      <div>
+        <label style="font-size:10px;color:var(--text-muted)">SSCC PF</label>
+        <input id="edit-pf-sscc" type="text" style="width:100%;font-family:'IBM Plex Mono',monospace;font-size:12px;padding:7px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);outline:none;">
+      </div>
+      <div>
+        <label style="font-size:10px;color:var(--text-muted)">Code-lot PF</label>
+        <input id="edit-pf-lot" type="text" style="width:100%;font-family:'IBM Plex Mono',monospace;font-size:12px;padding:7px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);outline:none;">
+      </div>
+      <div>
+        <label style="font-size:10px;color:var(--text-muted)">Quantité PF</label>
+        <input id="edit-pf-qty" type="number" style="width:100%;font-family:'IBM Plex Mono',monospace;font-size:12px;padding:7px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);outline:none;">
+      </div>
+    </div>
+
+    <!-- SF VS -->
+    <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--vs-color);margin-bottom:6px;">SF VS</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 80px;gap:8px;margin-bottom:10px;">
+      <div>
+        <label style="font-size:10px;color:var(--text-muted)">SSCC SF VS</label>
+        <input id="edit-vs-sscc" type="text" style="width:100%;font-family:'IBM Plex Mono',monospace;font-size:12px;padding:7px 10px;border:1px solid var(--vs-border);border-radius:6px;background:var(--vs-bg);color:var(--text);outline:none;">
+      </div>
+      <div>
+        <label style="font-size:10px;color:var(--text-muted)">Lot VS</label>
+        <input id="edit-vs-lot" type="text" style="width:100%;font-family:'IBM Plex Mono',monospace;font-size:12px;padding:7px 10px;border:1px solid var(--vs-border);border-radius:6px;background:var(--vs-bg);color:var(--text);outline:none;">
+      </div>
+      <div>
+        <label style="font-size:10px;color:var(--text-muted)">Cs VS</label>
+        <input id="edit-vs-cs" type="number" step="0.01" style="width:100%;font-family:'IBM Plex Mono',monospace;font-size:12px;padding:7px 10px;border:1px solid var(--vs-border);border-radius:6px;background:var(--vs-bg);color:var(--text);outline:none;">
+      </div>
+    </div>
+
+    <!-- SF VSOP -->
+    <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--vsop-color);margin-bottom:6px;">SF VSOP</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 80px;gap:8px;margin-bottom:10px;">
+      <div>
+        <label style="font-size:10px;color:var(--text-muted)">SSCC SF VSOP</label>
+        <input id="edit-vsop-sscc" type="text" style="width:100%;font-family:'IBM Plex Mono',monospace;font-size:12px;padding:7px 10px;border:1px solid var(--vsop-border);border-radius:6px;background:var(--vsop-bg);color:var(--text);outline:none;">
+      </div>
+      <div>
+        <label style="font-size:10px;color:var(--text-muted)">Lot VSOP</label>
+        <input id="edit-vsop-lot" type="text" style="width:100%;font-family:'IBM Plex Mono',monospace;font-size:12px;padding:7px 10px;border:1px solid var(--vsop-border);border-radius:6px;background:var(--vsop-bg);color:var(--text);outline:none;">
+      </div>
+      <div>
+        <label style="font-size:10px;color:var(--text-muted)">Cs VSOP</label>
+        <input id="edit-vsop-cs" type="number" step="0.01" style="width:100%;font-family:'IBM Plex Mono',monospace;font-size:12px;padding:7px 10px;border:1px solid var(--vsop-border);border-radius:6px;background:var(--vsop-bg);color:var(--text);outline:none;">
+      </div>
+    </div>
+
+    <!-- SF XO -->
+    <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--xo-color);margin-bottom:6px;">SF XO</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 80px;gap:8px;margin-bottom:20px;">
+      <div>
+        <label style="font-size:10px;color:var(--text-muted)">SSCC SF XO</label>
+        <input id="edit-xo-sscc" type="text" style="width:100%;font-family:'IBM Plex Mono',monospace;font-size:12px;padding:7px 10px;border:1px solid var(--xo-border);border-radius:6px;background:var(--xo-bg);color:var(--text);outline:none;">
+      </div>
+      <div>
+        <label style="font-size:10px;color:var(--text-muted)">Lot XO</label>
+        <input id="edit-xo-lot" type="text" style="width:100%;font-family:'IBM Plex Mono',monospace;font-size:12px;padding:7px 10px;border:1px solid var(--xo-border);border-radius:6px;background:var(--xo-bg);color:var(--text);outline:none;">
+      </div>
+      <div>
+        <label style="font-size:10px;color:var(--text-muted)">Cs XO</label>
+        <input id="edit-xo-cs" type="number" step="0.01" style="width:100%;font-family:'IBM Plex Mono',monospace;font-size:12px;padding:7px 10px;border:1px solid var(--xo-border);border-radius:6px;background:var(--xo-bg);color:var(--text);outline:none;">
+      </div>
+    </div>
+
+    <div style="display:flex;gap:8px;">
+      <button onclick="fermerModalEdit()" style="flex:1;padding:12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-family:'IBM Plex Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;color:var(--text-muted)">Annuler</button>
+      <button onclick="sauvegarderEditPalette()" style="flex:2;padding:12px;background:var(--accent);border:none;border-radius:8px;color:white;font-family:'IBM Plex Sans',sans-serif;font-size:13px;font-weight:700;cursor:pointer;">✓ Enregistrer les modifications</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<script>
+// ─── CONFIG — clé API saisie au démarrage, jamais dans le code ───────────────
+let API_KEY = '';
+
+// ─── LOGIN ────────────────────────────────────────────────────────────────────
+const LS_KEY = 'jhc_api_key';
+
+// Au chargement : si une clé est déjà mémorisée, pré-remplir et connecter auto
+window.addEventListener('DOMContentLoaded', () => {
+  const saved = localStorage.getItem(LS_KEY);
+  if (saved) {
+    document.getElementById('api-key-input').value = saved;
+    submitKey(true); // auto-login silencieux
+  }
+});
+
+function submitKey(silent = false) {
+  const input = document.getElementById('api-key-input');
+  const key = input.value.trim();
+  const errEl = document.getElementById('login-error');
+  const spinner = document.getElementById('login-spinner');
+  const btn = document.getElementById('btn-login');
+
+  if (!key.startsWith('sk-ant-') || key.length < 20) {
+    if (!silent) {
+      input.classList.add('err');
+      errEl.classList.add('visible');
+      input.focus();
+    }
+    return;
+  }
+
+  input.classList.remove('err');
+  errEl.classList.remove('visible');
+  btn.disabled = true;
+  spinner.classList.add('active');
+
+  fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': key,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 5,
+      messages: [{ role: 'user', content: 'ok' }]
+    })
+  })
+  .then(res => {
+    if (res.ok || res.status === 400) {
+      API_KEY = key;
+      localStorage.setItem(LS_KEY, key);
+      document.getElementById('login-screen').style.display = 'none';
+      // Restaurer session si disponible
+      if (restaurerSession()) {
+        renderPalettesTable();
+        // Remettre les barres SF à jour
+        ['vs','vsop','xo'].forEach(t => {
+          if (sfStock[t]) {
+            document.getElementById(`epu-${t}`).classList.remove('inactive');
+            updateEpuBar(t);
+          }
+        });
+        document.getElementById('palette-counter').textContent = 'Palette #' + paletteNum;
+
+        // Reconstruire l'UI des étapes SF déjà scannées
+        ['of','vs','vsop','xo'].forEach(type => {
+          if (currentData[type] || (type === 'of' && ofData)) {
+            const d = currentData[type] || ofData;
+            // Marquer comme scanné visuellement
+            const idx = STEPS.indexOf(type);
+            const sb = document.getElementById(`status-${type}`);
+            sb.textContent = '✓ Scanné'; sb.classList.add('done');
+            const pr = document.getElementById(`prog-${idx}`);
+            pr.classList.remove('active'); pr.classList.add('done');
+            pr.querySelector('.step-num').textContent = '✓';
+            const btnA = document.getElementById(`btn-annuler-${type}`);
+            if (btnA) btnA.style.display = 'inline-block';
+            // Afficher résultat
+            if (type === 'of') renderResultOF(ofData);
+            else renderResult(type, d);
+            // Déverrouiller cette carte
+            document.getElementById(`card-${type}`).classList.remove('locked');
+          }
+        });
+
+        // Déverrouiller PF (prochaine étape à scanner)
+        document.getElementById('card-pf').classList.remove('locked');
+        const pfIdx = STEPS.indexOf('pf');
+        document.getElementById(`prog-${pfIdx}`).classList.add('active');
+        document.getElementById(`prog-${pfIdx}`).querySelector('.step-num').textContent = pfIdx + 1;
+        setMsg('pf', '↩ Session restaurée — scannez la fiche PF pour continuer', 'loading');
+
+        updateNoChangeSFButton();
+        if (allPalettes.length > 0) {
+          document.getElementById('btn-export-header').style.display = 'inline-block';
+          document.getElementById('btn-nouvel-of').style.display = 'inline-block';
+        }
+        setMsg('of', `✓ Session restaurée — ${allPalettes.length} palette(s) · Stock VS:${sfStock.vs?.restant?.toFixed(1)||'?'} VSOP:${sfStock.vsop?.restant?.toFixed(1)||'?'} XO:${sfStock.xo?.restant?.toFixed(1)||'?'}`, 'ok');
+      }
+    } else {
+      throw new Error('Clé refusée (statut ' + res.status + ')');
+    }
+  })
+  .catch(() => {
+    // Réseau indisponible ou CORS → on fait confiance au format
+    API_KEY = key;
+    localStorage.setItem(LS_KEY, key);
+    document.getElementById('login-screen').style.display = 'none';
+  })
+  .finally(() => {
+    btn.disabled = false;
+    spinner.classList.remove('active');
+  });
+}
+
+function forgetKey() {
+  if (!confirm('Supprimer la clé API mémorisée sur cet appareil ?')) return;
+  localStorage.removeItem(LS_KEY);
+  document.getElementById('api-key-input').value = '';
+  API_KEY = '';
+  document.getElementById('login-screen').style.display = 'flex';
+}
+
+// ─── State ────────────────────────────────────────────────────────────────────
+// Nouveau workflow : OF → VS → VSOP → XO → PF → Export
+const STEPS = ['of', 'vs', 'vsop', 'xo', 'pf'];
+const TYPE_LABELS = {
+  of:   'Ordre de Fabrication client (page OF)',
+  vs:   'Semi-Fini VS (Very Special)',
+  vsop: 'Semi-Fini VSOP (Very Superior Old Pale)',
+  xo:   'Semi-Fini XO (Extra Old)',
+  pf:   'Produit Fini (PF)'
+};
+
+// Mots-clés présents dans la référence produit pour détecter le type
+const TYPE_KEYWORDS = {
+  vs:   ['HY-VS40', 'VS40', '-VS-', 'VERY SPECIAL'],
+  vsop: ['HY-VSOP', 'VSOP40', 'VSOP', 'VERY SUPERIOR'],
+  xo:   ['HY-XO', 'XO40', '-XO-', 'EXTRA OLD'],
+  pf:   [] // le PF est identifié par la présence du SSCC + product_code sans "SF" dans la ref
+};
+
+const FIELD_DEFS = [
+  ['Code - Lot', null, true],   // null = computed field
+  ['LOT', 'lot', true],
+  ['Code Produit', 'product_code', false],
+  ['Référence', 'product_ref', false],
+  ['Date Embout.', 'bottling_date', false],
+  ['Marché', 'market', false],
+  ['Quantité', 'quantity', false],
+  ['SSCC', 'sscc', true],
+  ['GTIN', 'gtin', false],
+  ['Ligne', 'ligne', false],
+];
+
+let streams = {};
+let uploadedB64 = {};
+let currentData = { of: null, pf: null, vs: null, vsop: null, xo: null };
+let ofData = null;   // données extraites de la page OF
+let allPalettes = [];
+let paletteNum = 1;
+let isIncomplete = false;
+
+// ─── ÉPUISEMENT SF ────────────────────────────────────────────────────────────
+// Consommation SF calculée dynamiquement depuis l'OF :
+// conso SF (cs) = pf_cases_per_pallet × pf_units_per_case ÷ sf_units_per_case
+// Ex OF : 40 cs/pal PF × 24 mini/cs ÷ 120 mini/cs SF = 8 cs SF par palette PF
+
+// ─── Rebut SF ─────────────────────────────────────────────────────────────────
+function declarerRebut(type, event) {
+  event.stopPropagation(); // ne pas déclencher clicCompteurSF
+  if (!sfStock[type]) return;
+  const labels = { vs:'SF VS', vsop:'SF VSOP', xo:'SF XO' };
+  if (!confirm(`Écarter 1 caisse de rebut sur ${labels[type]} ?\nCela déduira 1 cs du stock.`)) return;
+  sfRebuts[type] = (sfRebuts[type] || 0) + 1;
+  sfStock[type].restant = Math.max(0, sfStock[type].restant - 1);
+  if (sfStock[type].restant <= 0) sfEpuisesEnAttente.add(type);
+  updateEpuBar(type);
+  sauvegarderSession();
+}
+
+function updateRebutDisplay(type) {
+  const el = document.getElementById(`epu-text-${type}`);
+  if (!el || !sfStock[type]) return;
+  const s = sfStock[type];
+  const consoSF = getConsoSF(type);
+  const palEstimees = Math.floor(s.restant / consoSF);
+  const rebutTxt = sfRebuts[type] > 0 ? ` · ⚠️ ${sfRebuts[type]} rebut(s)` : '';
+  if (s.restant <= 0 || s._ruptureDeclared) {
+    el.textContent = s._ruptureDeclared ? '↺ Rupture déclarée' : '⛔ ÉPUISÉ — cliquez ici';
+  } else {
+    el.textContent = `${s.restant.toFixed(2)} cs — ~${palEstimees} pal PF${rebutTxt}`;
+  }
+}
+
+function getConsoSF(type) {
+  if (!ofData) return 320 / 120; // fallback si pas d'OF
+  const pfCs   = parseFloat(ofData.pf_cases_per_pallet) || 40;
+  const pfUnit = parseFloat(ofData.pf_units_per_case)   || 24;
+  const sfUnit = parseFloat(
+    type === 'vs'   ? ofData.vs_units_per_case   :
+    type === 'vsop' ? ofData.vsop_units_per_case :
+                      ofData.xo_units_per_case
+  ) || 120;
+  return (pfCs * pfUnit) / sfUnit;
+}
+
+// sfStock[type] = { total (cs), restant (cs, décimal), lot, sscc }
+let sfStock = { vs: null, vsop: null, xo: null };
+let sfEpuisesEnAttente = new Set();
+let sfRuptures = { vs: [], vsop: [], xo: [] };
+let sfPendingCs = { vs: 0, vsop: 0, xo: 0 };
+let sfRebuts    = { vs: 0, vsop: 0, xo: 0 }; // caisses écartées en rebut (cumul session)
+  // sfRuptures reset handled at nextPalette
+
+function initStockSF(type, qty, lot, sscc) {
+  // Règle : nouveau stock = restant actuel + quantité nouvelle palette
+  // Ex: 4cs restants + 29cs nouvelle palette = 33cs disponibles
+  const ajout = parseFloat(qty) || 0;
+  const restantActuel = sfStock[type] ? sfStock[type].restant : 0;
+  // Préserver _csAnciennePalette si une rupture est en cours
+  const csAncienne = sfStock[type]?._csAnciennePalette || 0;
+  const ruptureDeclared = sfStock[type]?._ruptureDeclared || false;
+
+  sfStock[type] = {
+    total:   ajout,           // total de la nouvelle palette scannée
+    restant: restantActuel + ajout, // cumul restant + nouvelle palette
+    lot, sscc: sscc || lot
+  };
+  if (csAncienne > 0) sfStock[type]._csAnciennePalette = csAncienne;
+  if (ruptureDeclared)  sfStock[type]._ruptureDeclared  = ruptureDeclared;
+
+  sfEpuisesEnAttente.delete(type);
+  updateEpuBar(type);
+}
+
+function updateEpuBar(type) {
+  const s = sfStock[type];
+  if (!s) return;
+  const pct = s.total > 0 ? Math.min(100, Math.max(0, (s.restant / s.total) * 100)) : 0;
+  const el   = document.getElementById(`epu-${type}`);
+  const fill = document.getElementById(`epu-fill-${type}`);
+  const txt  = document.getElementById(`epu-text-${type}`);
+
+  el.classList.remove('inactive', 'alerte', 'rupture');
+  fill.style.width = pct + '%';
+
+  const consoSF = getConsoSF(type);
+  const palEstimees = Math.floor(s.restant / consoSF);
+  const rebutTxt = (sfRebuts[type] || 0) > 0 ? ` · ⚠️ ${sfRebuts[type]} rebut(s)` : '';
+
+  if (s.restant <= 0 || s._ruptureDeclared) {
+    el.classList.add('rupture');
+    txt.textContent = s._ruptureDeclared ? '↺ Rupture déclarée' : '⛔ ÉPUISÉ — cliquez ici';
+  } else if (s.restant < consoSF * 2) {
+    el.classList.add('alerte');
+    txt.textContent = `${s.restant.toFixed(2)} cs — ~${palEstimees} pal PF${rebutTxt}`;
+  } else {
+    txt.textContent = `${s.restant.toFixed(2)} cs — ~${palEstimees} pal PF${rebutTxt}`;
+  }
+}
+
+// ─── Clic sur compteur SF ─────────────────────────────────────────────────────
+let modalSFType = null;
+// sfRuptures : consommations partielles sur la palette PF en cours
+// { vs: [{sscc, lot, cs}], vsop: [...], xo: [...] }
+
+function clicCompteurSF(type) {
+  if (!sfStock[type]) return;
+  modalSFType = type;
+  const labels = { vs: 'SF VS', vsop: 'SF VSOP', xo: 'SF XO' };
+  const s = sfStock[type];
+  const consoSF = getConsoSF(type);
+  const epuise = s.restant <= 0;
+  const rupture = !epuise && s.restant < consoSF;
+
+  document.getElementById('modal-sf-icon').textContent = epuise ? '⛔' : rupture ? '⚠️' : '🔄';
+  document.getElementById('modal-sf-title').textContent =
+    epuise  ? `Palette ${labels[type]} épuisée` :
+    rupture ? `Rupture partielle ${labels[type]}` :
+              `Changer la palette ${labels[type]}`;
+
+  let bodyHtml;
+  if (epuise) {
+    bodyHtml = `La palette <strong>${labels[type]}</strong> (lot <strong>${s.lot}</strong>) est épuisée.<br>Scannez la nouvelle fiche palette pour continuer.`;
+  } else if (rupture) {
+    bodyHtml = `Il reste <strong>${s.restant.toFixed(2)} cs</strong> sur la palette <strong>${s.lot}</strong> (SSCC ${s.sscc})<br>
+    mais il en faut <strong>${consoSF.toFixed(2)} cs</strong> pour une palette PF complète.<br><br>
+    <strong>Saisissez les cs utilisés sur cette palette</strong>, puis scannez la nouvelle :
+    <div style="margin-top:12px;">
+      <label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--text-muted)">Cs utilisés sur SSCC ${s.sscc}</label>
+      <input type="number" id="modal-sf-qty-partielle" value="${s.restant.toFixed(2)}" min="0" step="0.01"
+        style="width:100%;margin-top:6px;font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:700;
+               padding:10px;border:2px solid var(--gold-border);border-radius:8px;background:var(--gold-light);text-align:center;outline:none;">
+      <div style="font-size:10px;color:var(--text-muted);margin-top:4px;text-align:center">
+        Restant disponible : <strong>${s.restant.toFixed(2)} cs</strong>
+      </div>
+    </div>`;
+  } else {
+    bodyHtml = `Palette <strong>${labels[type]}</strong> — lot <strong>${s.lot}</strong><br>
+    Restant : <strong>${s.restant.toFixed(2)} cs</strong> (~${Math.floor(s.restant/consoSF)} palettes PF)<br><br>
+    Voulez-vous scanner une nouvelle fiche palette pour ce SF ?`;
+  }
+  document.getElementById('modal-sf-body').innerHTML = bodyHtml;
+  document.getElementById('modal-sf-confirm').textContent =
+    rupture ? '⚠️ Confirmer et scanner nouvelle palette' : '↺ Scanner nouvelle palette';
+  document.getElementById('modal-sf-change').style.display = 'flex';
+}
+
+function fermerModalSF() {
+  document.getElementById('modal-sf-change').style.display = 'none';
+  modalSFType = null;
+}
+
+function confirmerChangementSF() {
+  const type = modalSFType;
+  const s = sfStock[type];
+  const consoSF = getConsoSF(type);
+  const rupture = s && s.restant > 0 && s.restant < consoSF;
+
+  if (rupture) {
+    const qtyInput = document.getElementById('modal-sf-qty-partielle');
+    const csUtilises = qtyInput ? parseFloat(qtyInput.value) || s.restant : s.restant;
+    sfRuptures[type].push({ sscc: s.sscc, lot: s.lot, cs: csUtilises });
+    // Mémoriser les cs utilisés sur l'ancienne palette pour les déduire à "Palette suivante"
+    sfStock[type]._csAnciennePalette = csUtilises;
+    sfStock[type]._ruptureDeclared = true;
+    updateEpuBar(type);
+  }
+  fermerModalSF();
+  if (!type) return;
+  reouvrirSF(type);
+}
+
+// Rouvrir le scan d'un SF pour une nouvelle palette
+function reouvrirSF(type) {
+  const labels = { vs: 'SF VS', vsop: 'SF VSOP', xo: 'SF XO' };
+  const card = document.getElementById(`card-${type}`);
+
+  if (streams[type]) stopCam(type);
+  uploadedB64[type] = null;
+  currentData[type] = null;
+
+  const sb = document.getElementById(`status-${type}`);
+  sb.textContent = '↺ Rescan requis'; sb.classList.remove('done');
+  sb.style.background = '#fff3cd'; sb.style.color = '#856404'; sb.style.borderColor = '#ffc107';
+
+  const idx = STEPS.indexOf(type);
+  const pr = document.getElementById(`prog-${idx}`);
+  pr.classList.remove('done'); pr.classList.add('active');
+  pr.querySelector('.step-num').textContent = idx + 1;
+
+  document.getElementById(`result-${type}`).innerHTML =
+    `<div class="result-placeholder"><div class="icon">🔄</div><p>Scannez la nouvelle fiche palette SF</p></div>`;
+  document.getElementById(`cnv-${type}`).style.display = 'none';
+  document.getElementById(`vid-${type}`).style.display = 'none';
+  document.getElementById(`ph-${type}`).style.display = 'flex';
+  document.getElementById(`start-${type}`).disabled = false;
+  document.getElementById(`stop-${type}`).disabled = true;
+  document.getElementById(`cap-${type}`).disabled = true;
+  document.getElementById(`upload-preview-${type}`).style.display = 'none';
+  document.getElementById(`file-${type}`).value = '';
+  setMsg(type, `⚠️ Palette ${labels[type]} — scannez la nouvelle fiche palette`, 'err');
+
+  card.classList.remove('locked');
+  card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  // export toujours accessible
+  sfEpuisesEnAttente.add(type);
+  updateNoChangeSFButton();
+}
+function deduireConsommationSF(isIncompletePalette, manualQtyPF, qtyPFRef, manualCsSF) {
+  // manualCsSF = { vs: N, vsop: N, xo: N } si palette incomplète avec saisie SF directe
+  // Sinon calcul proportionnel sur manualQtyPF/qtyPFRef
+  ['vs','vsop','xo'].forEach(t => {
+    if (!sfStock[t]) return;
+    let conso;
+    if (isIncompletePalette && manualCsSF && manualCsSF[t] != null) {
+      // Saisie directe cs SF — priorité absolue
+      conso = parseFloat(manualCsSF[t]);
+    } else if (isIncompletePalette && manualQtyPF != null && qtyPFRef) {
+      // Calcul proportionnel sur Qté PF
+      const facteur = parseFloat(manualQtyPF) / parseFloat(qtyPFRef);
+      conso = getConsoSF(t) * facteur;
+    } else {
+      // Palette complète — conso théorique
+      conso = getConsoSF(t);
+    }
+    sfStock[t].restant = Math.max(0, sfStock[t].restant - conso);
+    sfStock[t]._csAnciennePalette = 0;
+    sfStock[t]._ruptureDeclared   = false;
+    if (sfStock[t].restant <= 0) sfEpuisesEnAttente.add(t);
+    updateEpuBar(t);
+  });
+}
+
+// Vérifie s'il y a des SF épuisés qui bloquent la prochaine palette
+function verifierBlocageEpuisement() {
+  return sfEpuisesEnAttente.size > 0;
+}
+
+
+
+// ─── Annuler un scan ─────────────────────────────────────────────────────────
+function annulerScan(type) {
+  if (!confirm(`Annuler le scan ${type.toUpperCase()} et recommencer cette étape ?`)) return;
+
+  // Si c'est un SF : inverser l'ajout au stock (soustraire la quantité scannée)
+  if (['vs','vsop','xo'].includes(type) && sfStock[type] && currentData[type]?.quantity) {
+    const qteAnnulee = parseFloat(currentData[type].quantity) || 0;
+    sfStock[type].restant = Math.max(0, sfStock[type].restant - qteAnnulee);
+    sfStock[type].total   = Math.max(0, (sfStock[type].total || 0) - qteAnnulee);
+    // Si le restant revient à la valeur d'avant réappro, considérer la palette comme jamais scannée
+    if (sfStock[type].restant <= 0 && sfStock[type].total <= 0) {
+      sfStock[type] = null;
+      document.getElementById(`epu-${type}`).classList.add('inactive');
+      document.getElementById(`epu-text-${type}`).textContent = '—';
+    } else {
+      updateEpuBar(type);
+    }
+    sfEpuisesEnAttente.delete(type);
+  }
+
+  // Réinitialiser les données
+  currentData[type] = null;
+  if (type === 'of') ofData = null;
+
+  // Remettre l'étape en attente
+  const idx = STEPS.indexOf(type);
+  const sb = document.getElementById(`status-${type}`);
+  sb.textContent = 'En attente'; sb.classList.remove('done');
+  sb.style.background = ''; sb.style.color = ''; sb.style.borderColor = '';
+  // Cacher le bouton annuler
+  document.getElementById(`btn-annuler-${type}`).style.display = 'none';
+
+  // Reset progress
+  const pr = document.getElementById(`prog-${idx}`);
+  pr.classList.remove('done', 'active'); pr.classList.add('active');
+  pr.querySelector('.step-num').textContent = idx + 1;
+
+  // Reset UI capture
+  if (streams[type]) stopCam(type);
+  const vid = document.getElementById(`vid-${type}`);
+  if (vid) vid.style.display = 'none';
+  const cnv = document.getElementById(`cnv-${type}`);
+  if (cnv) cnv.style.display = 'none';
+  const ph = document.getElementById(`ph-${type}`);
+  if (ph) ph.style.display = 'flex';
+  const startBtn = document.getElementById(`start-${type}`);
+  if (startBtn) startBtn.disabled = false;
+  const stopBtn = document.getElementById(`stop-${type}`);
+  if (stopBtn) stopBtn.disabled = true;
+  const capBtn = document.getElementById(`cap-${type}`);
+  if (capBtn) capBtn.disabled = true;
+  const upPrev = document.getElementById(`upload-preview-${type}`);
+  if (upPrev) upPrev.style.display = 'none';
+  const fileInp = document.getElementById(`file-${type}`);
+  if (fileInp) fileInp.value = '';
+
+  // Reset panneau résultat
+  document.getElementById(`result-${type}`).innerHTML =
+    '<div class="result-placeholder"><div class="icon">📋</div><p>Les données apparaîtront<br>après capture</p></div>';
+  setMsg(type, 'Scan annulé — recommencez', 'err');
+
+  // Verrouiller les étapes suivantes si nécessaire
+  const nextTypes = STEPS.slice(idx + 1).filter(t => t !== 'of');
+  nextTypes.forEach(nt => {
+    if (!currentData[nt]) return; // déjà vide
+    // Laisser les étapes suivantes intactes si déjà scannées
+  });
+
+  // Relancer depuis cette étape : verrouiller export si PF annulé
+  if (type === 'pf') {
+    // export toujours accessible
+    document.getElementById('prog-5').classList.remove('done','active');
+    document.getElementById('prog-5').querySelector('.step-num').textContent = '6';
+  }
+
+  updateNoChangeSFButton();
+}
+
+// ─── Clock ────────────────────────────────────────────────────────────────────
+function tick() {
+  const n = new Date();
+  document.getElementById('clock').innerHTML =
+    n.toLocaleDateString('fr-FR',{weekday:'short',day:'2-digit',month:'short'}) + '<br>' +
+    n.toLocaleTimeString('fr-FR');
+}
+tick(); setInterval(tick, 1000);
+
+// ─── Mode ─────────────────────────────────────────────────────────────────────
+function setMode(type, mode) {
+  const tabs = document.querySelectorAll(`#${type}-camera-ui`)
+    .length ? null : null;
+  document.getElementById(`${type}-camera-ui`).style.display = mode === 'camera' ? 'block' : 'none';
+  document.getElementById(`${type}-upload-ui`).style.display = mode === 'upload' ? 'block' : 'none';
+  // update tab style
+  const card = document.getElementById(`card-${type}`);
+  const modeTabs = card.querySelectorAll('.mode-tab');
+  modeTabs[0].classList.toggle('active', mode === 'camera');
+  modeTabs[1].classList.toggle('active', mode === 'upload');
+  if (mode === 'upload' && streams[type]) stopCam(type);
+}
+
+// ─── Camera ───────────────────────────────────────────────────────────────────
+async function startCam(type) {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width: { ideal: 1920 } }
+    });
+    streams[type] = stream;
+    const vid = document.getElementById(`vid-${type}`);
+    vid.srcObject = stream; vid.style.display = 'block';
+    document.getElementById(`ph-${type}`).style.display = 'none';
+    document.getElementById(`start-${type}`).disabled = true;
+    document.getElementById(`stop-${type}`).disabled = false;
+    document.getElementById(`cap-${type}`).disabled = false;
+    setMsg(type, '📷 Cadrez la fiche et appuyez sur Capturer', 'loading');
+  } catch(e) {
+    setMsg(type, '✗ Caméra indisponible : ' + e.message, 'err');
+  }
+}
+
+function stopCam(type) {
+  if (streams[type]) { streams[type].getTracks().forEach(t => t.stop()); delete streams[type]; }
+  const vid = document.getElementById(`vid-${type}`);
+  vid.style.display = 'none';
+  document.getElementById(`ph-${type}`).style.display = 'flex';
+  document.getElementById(`start-${type}`).disabled = false;
+  document.getElementById(`stop-${type}`).disabled = true;
+  document.getElementById(`cap-${type}`).disabled = true;
+}
+
+async function capture(type) {
+  const vid = document.getElementById(`vid-${type}`);
+  const hc = document.getElementById('hidden-canvas');
+  hc.width = vid.videoWidth; hc.height = vid.videoHeight;
+  hc.getContext('2d').drawImage(vid, 0, 0);
+
+  // Freeze frame
+  const cnv = document.getElementById(`cnv-${type}`);
+  cnv.width = vid.videoWidth; cnv.height = vid.videoHeight;
+  cnv.getContext('2d').drawImage(vid, 0, 0);
+  cnv.style.display = 'block';
+  vid.style.display = 'none';
+
+  const b64 = hc.toDataURL('image/jpeg', 0.80).split(',')[1];
+  // Analyse auto — pas besoin de bouton supplémentaire
+  await analyzeImage(b64, type, 'camera');
+}
+
+// ─── File upload — analyse automatique dès chargement ────────────────────────
+function handleFile(event, type) {
+  const file = event.target.files[0];
+  if (!file) return;
+  setMsg(type, '⏳ Chargement de l\'image…', 'loading');
+  const reader = new FileReader();
+  reader.onload = async e => {
+    uploadedB64[type] = e.target.result.split(',')[1];
+    // Preview
+    const img = new Image();
+    img.onload = () => {
+      const cnv = document.getElementById(`cnv-upload-${type}`);
+      cnv.width = img.width; cnv.height = img.height;
+      cnv.getContext('2d').drawImage(img, 0, 0);
+      document.getElementById(`upload-preview-${type}`).style.display = 'block';
+    };
+    img.src = e.target.result;
+    // Analyse automatique
+    await analyzeImage(uploadedB64[type], type, 'upload');
+  };
+  reader.readAsDataURL(file);
+}
+
+// ─── Redimensionnement image avant envoi API (max 1024px, qualité 0.82) ────────
+function resizeImageB64(sourceB64, maxSize = 1024, quality = 0.82) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      let w = img.width, h = img.height;
+      if (w > maxSize || h > maxSize) {
+        if (w > h) { h = Math.round(h * maxSize / w); w = maxSize; }
+        else       { w = Math.round(w * maxSize / h); h = maxSize; }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL('image/jpeg', quality).split(',')[1]);
+    };
+    img.src = 'data:image/jpeg;base64,' + sourceB64;
+  });
+}
+
+// ─── AI Analysis ──────────────────────────────────────────────────────────────
+async function analyzeImage(b64, type, source) {
+  const loadId = source === 'camera' ? `loading-${type}` : `loading-upload-${type}`;
+  document.getElementById(loadId).classList.add('active');
+  if (source === 'camera') document.getElementById(`cap-${type}`).disabled = true;
+  setMsg(type, '⏳ Analyse IA en cours…', 'loading');
+
+  // Prompt différent selon type OF ou fiche palette
+  let prompt;
+  if (type === 'of') {
+    prompt = `Tu analyses un Ordre de Fabrication (OF) Hennessy. Ce document a toujours la même structure.
+
+Extrais EXACTEMENT ces champs :
+- of_number : numéro d'OF (champ "OF N°", ex: 2584306)
+- of_date : date du document (ex: 01.07.2026)
+- of_label : libellé de l'OF (1ère ligne en haut, ex: "24 COF 3MIN 5CL VS/VSOP/XO EOY26 USA")
+- commande : numéro de commande (champ "Commande N°", ex: 4300129945)
+- qty_cases_total : quantité caisses totale (champ "Quantité caisses", ex: 1875)
+- qty_pce_per_case : pièces par caisse PF (champ "Pce par Cs", ex: 24)
+- pf_cases_per_pallet : nombre de caisses par palette PF (champ "Nombre caisse/palette", ex: 40)
+- periode_debut : début période de production (ex: 20.07.2026)
+- periode_fin : fin période de production (ex: 27.07.2026)
+- vs_ref : référence du produit source VS (libellé contenant "HVS" ou "VS", ex: "120 MINI 5 HVS SE USA M23")
+- vs_code : code référence VS (ex: 1104127)
+- vs_cases_per_pallet : nb de cs/pal pour VS (ex: 56)
+- vs_units_per_case : nb col/cs pour VS (ex: 120)
+- vsop_ref : référence du produit source VSOP (libellé contenant "HVSOP" ou "VSOP", ex: "120 MINI 5 HVSOP SE USA M21")
+- vsop_code : code référence VSOP (ex: 1106789)
+- vsop_cases_per_pallet : nb de cs/pal pour VSOP (ex: 64)
+- vsop_units_per_case : nb col/cs pour VSOP (ex: 120)
+- xo_ref : référence du produit source XO (libellé contenant "XO", ex: "120 PAMP 5 XO UPG SE USA S/F M22")
+- xo_code : code référence XO (ex: 1109369)
+- xo_cases_per_pallet : nb de cs/pal pour XO (ex: 36)
+- xo_units_per_case : nb col/cs pour XO (ex: 120)
+
+Réponds UNIQUEMENT avec un JSON valide, sans markdown, sans explication. Si un champ est absent: null.`;
+  } else {
+    prompt = `Tu analyses une étiquette fiche palette JHC / Hennessy.
+IMPORTANT — VERROU TYPE : L'étape attendue est "${TYPE_LABELS[type]}".
+Tu dois d'abord identifier le type réel de la fiche en lisant la référence produit (ex: HY-VS40=VS, HY-VSOP40=VSOP, HY-XO40=XO).
+Extrais ces champs:
+- detected_type: le type détecté ("vs", "vsop", "xo" ou "pf") selon la référence produit lue
+- product_code (ex: 01099262)
+- lot (ex: 602988)
+- bottling_date (ex: 2026/01/29)
+- gtin (ex: 10081753848375)
+- sscc : RÈGLE CRITIQUE — le SSCC est affiché EN GRAND dans un encadré rectangulaire sur la fiche. Il se présente en deux blocs séparés par un espace (ex: "33245990 615559005 9"). Le chiffre "9" à la fin est affiché EN PETIT, séparé — il fait partie du SSCC et doit être inclus. Concaténer TOUS les chiffres SANS espaces → "332459906155590059". Le SSCC fait TOUJOURS exactement 18 chiffres. Lis chaque chiffre un par un, y compris le petit chiffre final. NE PAS utiliser le GTIN (commence par "032..." 14 chiffres). NE PAS inclure le préfixe "(00)" du code-barres en dessous.
+- quantity (ex: 56)
+- market (ex: USA DP ou EUROPE)
+- product_ref (ex: HY-VS40-0,75L--C12-USA)
+- ligne (ex: ST M11)
+Réponds UNIQUEMENT avec un JSON valide, sans markdown. Si un champ est absent: null.`;
+  }
+
+  try {
+    // Redimensionner l'image avant envoi (évite les erreurs Overloaded)
+    const b64Resized = await resizeImageB64(b64, 1024, 0.80);
+
+    // Appel API avec retry automatique (3 tentatives, délai croissant)
+    const MAX_RETRIES = 3;
+    let json = null;
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      if (attempt > 1) {
+        const delai = attempt * 3000; // 3s, 6s
+        setMsg(type, `⏳ Serveur surchargé — nouvelle tentative ${attempt}/${MAX_RETRIES} dans ${delai/1000}s…`, 'loading');
+        await new Promise(r => setTimeout(r, delai));
+      }
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': API_KEY,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true'
+        },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 1000,
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: b64Resized } },
+              { type: 'text', text: prompt }
+            ]
+          }]
+        })
+      });
+      if (res.status === 529 || res.status === 503) {
+        // Overloaded — réessayer
+        if (attempt === MAX_RETRIES) throw new Error('Serveur surchargé après 3 tentatives. Réessayez dans quelques instants.');
+        continue;
+      }
+      if (!res.ok) { const e = await res.json(); throw new Error(e.error?.message || `HTTP ${res.status}`); }
+      json = await res.json();
+      break; // succès
+    }
+    let raw = json.content[0].text.trim().replace(/```json|```/g,'').trim();
+    const parsed = JSON.parse(raw);
+
+    // ── VERROU TYPE — désactivé pour PF, actif pour VS/VSOP/XO
+    if (type !== 'of' && type !== 'pf') {
+      const detected = (parsed.detected_type || '').toLowerCase().trim();
+      if (detected && detected !== type) {
+        const labels = { vs:'SF VS', vsop:'SF VSOP', xo:'SF XO', pf:'Produit Fini' };
+        const expectedLabel = labels[type] || type.toUpperCase();
+        const detectedLabel = labels[detected] || detected.toUpperCase();
+        const cnv = document.getElementById(`cnv-${type}`);
+        const vid = document.getElementById(`vid-${type}`);
+        if (streams[type]) { cnv.style.display='none'; vid.style.display='block'; }
+        document.getElementById(loadId).classList.remove('active');
+        if (source === 'camera' && streams[type]) document.getElementById(`cap-${type}`).disabled = false;
+        setMsg(type,
+          `🚫 ERREUR TYPE — Fiche scannée : ${detectedLabel} · Attendu : ${expectedLabel} — Recommencez avec la bonne fiche.`,
+          'err');
+        return;
+      }
+    }
+
+    // ── Règle XO : changement de lot = fermeture palette PF obligatoire
+    if (type === 'xo' && sfStock.xo && sfStock.xo.lot && parsed.lot &&
+        sfStock.xo.lot !== parsed.lot && currentData.pf) {
+      setMsg(type,
+        `⚠️ Changement de lot XO détecté (${sfStock.xo.lot} → ${parsed.lot}). La palette PF en cours doit être clôturée avant de continuer.`,
+        'err');
+      document.getElementById(loadId).classList.remove('active');
+      if (source === 'camera' && streams[type]) document.getElementById(`cap-${type}`).disabled = false;
+      return;
+    }
+
+    // ── Validation SSCC : doit faire exactement 18 chiffres
+    if (parsed.sscc) {
+      const digits = String(parsed.sscc).replace(/\D/g, '');
+      if (digits.length === 18) {
+        parsed.sscc = digits; // OK
+      } else {
+        // SSCC invalide → bloquer et demander de rescanner
+        const cnv = document.getElementById(`cnv-${type}`);
+        const vid = document.getElementById(`vid-${type}`);
+        if (streams[type]) { cnv.style.display='none'; vid.style.display='block'; }
+        document.getElementById(loadId).classList.remove('active');
+        if (source === 'camera' && streams[type]) document.getElementById(`cap-${type}`).disabled = false;
+        setMsg(type,
+          `🚫 SSCC invalide — ${digits.length} chiffres lus au lieu de 18. ` +
+          (digits.length < 18
+            ? `Vérifiez que le chiffre final en petit (chiffre de contrôle) est bien visible, puis rescannez.`
+            : `Trop de chiffres lus, rescannez en cadrant mieux l'encadré SSCC.`),
+          'err');
+        return;
+      }
+    }
+
+    // ── Blocage doublon SSCC PF
+    if (type === 'pf' && parsed.sscc) {
+      const ssccDejaUtilise = allPalettes.some(p => p.pf?.sscc === parsed.sscc);
+      if (ssccDejaUtilise) {
+        const cnv = document.getElementById(`cnv-${type}`);
+        const vid = document.getElementById(`vid-${type}`);
+        if (streams[type]) { cnv.style.display='none'; vid.style.display='block'; }
+        document.getElementById(loadId).classList.remove('active');
+        if (source === 'camera' && streams[type]) document.getElementById(`cap-${type}`).disabled = false;
+        setMsg(type,
+          `🚫 DOUBLON — Le SSCC ${parsed.sscc} a déjà été scanné sur cette session. Vérifiez la fiche palette.`,
+          'err');
+        return;
+      }
+    }
+
+    // ── Blocage doublon SSCC SF (VS, VSOP, XO)
+    if (['vs','vsop','xo'].includes(type) && parsed.sscc) {
+      const ssccNorm = parsed.sscc; // déjà normalisé 18 chiffres
+      const ssccDejaUtilise =
+        // Vérifier dans les palettes déjà validées
+        allPalettes.some(p => {
+          const sfData = p[type];
+          if (sfData?.sscc && String(sfData.sscc).replace(/\D/g,'') === ssccNorm) return true;
+          return (p.sfRuptures?.[type] || []).some(r => r.sscc && String(r.sscc).replace(/\D/g,'') === ssccNorm);
+        }) ||
+        // Vérifier le SF actuellement en mémoire (palette en cours non encore validée)
+        (currentData[type]?.sscc && String(currentData[type].sscc).replace(/\D/g,'') === ssccNorm) ||
+        // Vérifier le stock SF actif (réappro : même SSCC que la palette en cours d'utilisation)
+        (sfStock[type]?.sscc && String(sfStock[type].sscc).replace(/\D/g,'') === ssccNorm);
+
+      if (ssccDejaUtilise) {
+        const labels = { vs:'SF VS', vsop:'SF VSOP', xo:'SF XO' };
+        const cnv = document.getElementById(`cnv-${type}`);
+        const vid = document.getElementById(`vid-${type}`);
+        if (streams[type]) { cnv.style.display='none'; vid.style.display='block'; }
+        document.getElementById(loadId).classList.remove('active');
+        if (source === 'camera' && streams[type]) document.getElementById(`cap-${type}`).disabled = false;
+        setMsg(type,
+          `🚫 DOUBLON — Le SSCC ${parsed.sscc} (${labels[type]}) est déjà en cours d'utilisation dans cette session. Scannez une nouvelle palette SF.`,
+          'err');
+        return;
+      }
+    }
+
+    currentData[type] = parsed;
+    if (type === 'of') {
+      ofData = parsed;
+      renderResultOF(parsed);
+    } else {
+      renderResult(type, parsed);
+      // Épuisement : init stock SF avec SSCC comme identifiant unique de palette
+      if (['vs','vsop','xo'].includes(type) && parsed.quantity && parsed.lot) {
+        initStockSF(type, parsed.quantity, parsed.lot, parsed.sscc);
+        sfEpuisesEnAttente.delete(type);
+      }
+    }
+    markDone(type);
+    // Reset style badge statut si c'était un rescan
+    const sb = document.getElementById(`status-${type}`);
+    sb.style.background = ''; sb.style.color = ''; sb.style.borderColor = '';
+    setMsg(type, '✓ Fiche analysée avec succès', 'ok');
+    // Si c'était un rescan SF, vérifier si tous les SF sont ok pour débloquer export
+    if (['vs','vsop','xo'].includes(type) && sfEpuisesEnAttente.size === 0) {
+      // Tous SF rechargés → on peut potentiellement débloquer l'export si PF aussi ok
+      if (currentData.pf) unlockExport();
+    }
+    unlockNext(type);
+    if (['vs','vsop','xo'].includes(type)) updateNoChangeSFButton();
+    sauvegarderSession(); // Sauvegarde auto après chaque scan réussi
+  } catch(e) {
+    setMsg(type, '✗ ' + e.message, 'err');
+    if (source === 'camera' && streams[type]) document.getElementById(`cap-${type}`).disabled = false;
+  } finally {
+    document.getElementById(loadId).classList.remove('active');
+  }
+}
+
+// ─── Render OF result ─────────────────────────────────────────────────────────
+function renderResultOF(d) {
+  const panel = document.getElementById('result-of');
+
+  const section = (title, color) =>
+    `<div style="padding:6px 12px;background:${color};font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#555">${title}</div>`;
+
+  const row = (label, val, hi=false) => val ? `<div class="result-field">
+    <span class="field-key">${label}</span>
+    <span class="field-val${hi ? ' highlight' : ''}">${val}</span>
+  </div>` : '';
+
+  const sfBlock = (type, ref, code, cspal, colcs, color) => `
+    <div style="border:1px solid ${color}20;border-radius:6px;overflow:hidden;margin-bottom:8px">
+      <div style="padding:5px 12px;background:${color}18;font-size:10px;font-weight:700;color:${color};text-transform:uppercase;letter-spacing:1px">SF ${type}</div>
+      ${row('Référence', ref)}
+      ${row('Code', code)}
+      ${row('Caisses / palette', cspal, true)}
+      ${row('Unités / caisse', colcs)}
+    </div>`;
+
+  panel.innerHTML = `<div class="result-fields">
+    ${section('Identification OF', '#f5f5f0')}
+    ${row('N° OF', d.of_number, true)}
+    ${row('Libellé', d.of_label)}
+    ${row('Date', d.of_date)}
+    ${row('Commande', d.commande)}
+    ${section('Produit Fini', '#f5f5f0')}
+    ${row('Qté caisses total', d.qty_cases_total, true)}
+    ${row('Pièces / caisse', d.qty_pce_per_case)}
+    ${row('Caisses / palette PF', d.pf_cases_per_pallet, true)}
+    ${row('Période', d.periode_debut && d.periode_fin ? d.periode_debut + ' → ' + d.periode_fin : (d.periode_debut || d.periode_fin))}
+    ${section('Produits Sources (SF)', '#f5f5f0')}
+    ${sfBlock('VS',   d.vs_ref,   d.vs_code,   d.vs_cases_per_pallet,   d.vs_units_per_case,   'var(--vs-color)')}
+    ${sfBlock('VSOP', d.vsop_ref, d.vsop_code, d.vsop_cases_per_pallet, d.vsop_units_per_case, 'var(--vsop-color)')}
+    ${sfBlock('XO',   d.xo_ref,   d.xo_code,   d.xo_cases_per_pallet,   d.xo_units_per_case,   'var(--xo-color)')}
+    ${section('Consommation SF / palette PF', '#f0f5f0')}
+    ${row('VS consommé / pal PF',   d.pf_cases_per_pallet && d.pf_units_per_case && d.vs_units_per_case   ? ((parseFloat(d.pf_cases_per_pallet)*parseFloat(d.pf_units_per_case))/parseFloat(d.vs_units_per_case)).toFixed(2)+' cs'   : '—', true)}
+    ${row('VSOP consommé / pal PF', d.pf_cases_per_pallet && d.pf_units_per_case && d.vsop_units_per_case ? ((parseFloat(d.pf_cases_per_pallet)*parseFloat(d.pf_units_per_case))/parseFloat(d.vsop_units_per_case)).toFixed(2)+' cs' : '—', true)}
+    ${row('XO consommé / pal PF',   d.pf_cases_per_pallet && d.pf_units_per_case && d.xo_units_per_case   ? ((parseFloat(d.pf_cases_per_pallet)*parseFloat(d.pf_units_per_case))/parseFloat(d.xo_units_per_case)).toFixed(2)+' cs'   : '—', true)}
+  </div>`;
+}
+
+// ─── Render result palette — avec concaténation code-lot ──────────────────────
+function concat(d) {
+  if (!d) return '—';
+  const code = d.product_code || '';
+  const lot  = d.lot || '';
+  if (!code && !lot) return '—';
+  if (!code) return lot;
+  if (!lot)  return code;
+  return `${code}-${lot}`;
+}
+
+
+function renderResult(type, d) {
+  const panel = document.getElementById(`result-${type}`);
+  const rows = FIELD_DEFS.map(([label, key, hi]) => {
+    let val, cls;
+    if (key === null) {
+      // Code-Lot concatenated
+      val = concat(d);
+      cls = 'field-val concat-val';
+    } else {
+      val = d[key] || '—';
+      cls = hi ? 'field-val highlight' : 'field-val';
+    }
+    return `<div class="result-field">
+      <span class="field-key">${label}</span>
+      <span class="${cls}">${val}</span>
+    </div>`;
+  }).join('');
+  panel.innerHTML = `<div class="result-fields">${rows}</div>`;
+}
+
+// ─── Workflow ─────────────────────────────────────────────────────────────────
+function markDone(type) {
+  const idx = STEPS.indexOf(type);
+  document.getElementById(`status-${type}`).textContent = '✓ Scanné';
+  document.getElementById(`status-${type}`).classList.add('done');
+  document.getElementById(`prog-${idx}`).classList.remove('active');
+  document.getElementById(`prog-${idx}`).classList.add('done');
+  document.getElementById(`prog-${idx}`).querySelector('.step-num').textContent = '✓';
+  // Afficher le bouton annuler
+  const btnAnnuler = document.getElementById(`btn-annuler-${type}`);
+  if (btnAnnuler) btnAnnuler.style.display = 'inline-block';
+}
+
+function unlockNext(type) {
+  const idx = STEPS.indexOf(type);
+  // Chercher la prochaine étape non encore scannée
+  for (let i = idx + 1; i < STEPS.length; i++) {
+    const next = STEPS[i];
+    if (!currentData[next]) {
+      // Cette étape n'est pas encore scannée → la déverrouiller
+      document.getElementById(`card-${next}`).classList.remove('locked');
+      document.getElementById(`card-${next}`).scrollIntoView({ behavior: 'smooth', block: 'start' });
+      document.getElementById(`prog-${i}`).classList.add('active');
+      return;
+    }
+    // Cette étape est déjà scannée → continuer à chercher
+  }
+  // Toutes les étapes sont scannées → export
+  unlockExport();
+}
+
+function unlockExport() {
+  const ec = document.getElementById('card-export');
+  ec.classList.remove('locked');
+  ec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  document.getElementById('prog-5').classList.add('active');
+  refreshExportSummary();
+  updateNoChangeSFButton();
+}
+
+function refreshExportSummary() {
+  const d = currentData;
+  // SSCC PF
+  document.getElementById('export-sscc').textContent = d.pf?.sscc || '—';
+  // Code-lot concatenés
+  document.getElementById('sum-pf').textContent   = concat(d.pf);
+  document.getElementById('sum-vs').textContent   = concat(d.vs);
+  document.getElementById('sum-vsop').textContent = concat(d.vsop);
+  document.getElementById('sum-xo').textContent   = concat(d.xo);
+
+  // Quantités de référence issues de l'OF (priorité) ou de la fiche palette
+  ['pf','vs','vsop','xo'].forEach(t => {
+    // Quantité de palette de référence : depuis OF si disponible
+    let qtyRef = null;
+    if (ofData) {
+      if (t === 'pf')   qtyRef = ofData.pf_cases_per_pallet;
+      if (t === 'vs')   qtyRef = ofData.vs_cases_per_pallet;
+      if (t === 'vsop') qtyRef = ofData.vsop_cases_per_pallet;
+      if (t === 'xo')   qtyRef = ofData.xo_cases_per_pallet;
+    }
+    const qtyFiche = d[t]?.quantity || '—';
+    document.getElementById(`qty-ref-${t}`).textContent = qtyRef || qtyFiche;
+    document.getElementById(`qty-sub-${t}`).textContent = concat(d[t]);
+    const input = document.getElementById(`qty-${t}`);
+    if (input.value === '') input.value = qtyRef || qtyFiche !== '—' ? (qtyRef || qtyFiche) : '';
+  });
+}
+
+// ─── Toggle palette incomplète ────────────────────────────────────────────────
+function toggleIncomplete() {
+  isIncomplete = document.getElementById('toggle-incomplete').checked;
+  document.getElementById('qty-fields').classList.toggle('visible', isIncomplete);
+  document.getElementById('badge-incomplete').classList.toggle('visible', isIncomplete);
+  if (isIncomplete) {
+    // Pré-remplir avec les quantités des fiches
+    ['pf','vs','vsop','xo'].forEach(t => {
+      const input = document.getElementById(`qty-${t}`);
+      if (!input.value && currentData[t]?.quantity) input.value = currentData[t].quantity;
+    });
+  }
+}
+
+function checkQtyWarning(type) {
+  const input = document.getElementById(`qty-${type}`);
+  const refQty = parseInt(currentData[type]?.quantity);
+  const val = parseInt(input.value);
+  input.classList.toggle('warning', !isNaN(refQty) && !isNaN(val) && val > refQty);
+}
+
+// Retourne la quantité effective pour une palette (saisie manuelle si incomplète, sinon fiche)
+function getEffectiveQty(paletteObj, type) {
+  if (paletteObj.incomplete && paletteObj.manualQty && paletteObj.manualQty[type] !== undefined) {
+    return paletteObj.manualQty[type];
+  }
+  return paletteObj[type]?.quantity || '';
+}
+
+// Affiche/masque le bouton header "Pas de changement SF"
+// Visible uniquement si au moins une palette a déjà été validée ET les 3 SF sont en mémoire
+function updateNoChangeSFButton() {
+  const btn = document.getElementById('btn-no-change-sf');
+  // Afficher si les 3 SF sont en mémoire (currentData) OU dans sfStock (données scannées)
+  const sfOk = (currentData.vs || sfStock.vs) &&
+               (currentData.vsop || sfStock.vsop) &&
+               (currentData.xo || sfStock.xo);
+  const aucunSFEpuise = sfEpuisesEnAttente.size === 0;
+  btn.style.display = (sfOk && aucunSFEpuise) ? 'inline-block' : 'none';
+  // Bouton export header : visible dès qu'il y a au moins une palette sauvegardée
+  const btnExport = document.getElementById('btn-export-header');
+  if (btnExport) btnExport.style.display = 'inline-block'; // toujours visible
+}
+
+// Raccourci appelé depuis le header
+function nextPaletteNoChangeSF() {
+  // Vérifier blocage épuisement
+  if (verifierBlocageEpuisement()) {
+    const labels = { vs:'SF VS', vsop:'SF VSOP', xo:'SF XO' };
+    const bloquants = [...sfEpuisesEnAttente].map(t => labels[t]).join(', ');
+    alert(`⛔ Stock SF épuisé : ${bloquants}\n\nScannez la nouvelle fiche palette SF avant de continuer.`);
+    return;
+  }
+  // Si une palette PF est en cours (données renseignées) → on la sauvegarde d'abord
+  if (currentData.pf) {
+    nextPalette(true);
+  } else {
+    // Pas de PF en cours → on passe directement en mode keepSF sans sauvegarder
+    paletteNum = allPalettes.length + 1;
+    document.getElementById('palette-counter').textContent = `Palette #${paletteNum}`;
+    // Reset PF uniquement — SF conservés
+    currentData.pf = null;
+    resetCardUI('pf');
+    document.getElementById('card-pf').classList.remove('locked');
+    const pfIdx = STEPS.indexOf('pf');
+    const pr = document.getElementById(`prog-${pfIdx}`);
+    pr.classList.remove('done','active');
+    pr.querySelector('.step-num').textContent = pfIdx + 1;
+    pr.classList.add('active');
+    // export toujours accessible
+    document.getElementById('prog-5').classList.remove('done','active');
+    document.getElementById('prog-5').querySelector('.step-num').textContent = '6';
+    document.getElementById('card-pf').scrollIntoView({ behavior:'smooth', block:'start' });
+    updateNoChangeSFButton();
+  }
+}
+
+// ─── Palette suivante ─────────────────────────────────────────────────────────
+function nextPalette(keepSF = false) {
+  // ── Vérifier si des SF épuisés bloquent la progression
+  if (verifierBlocageEpuisement()) {
+    const labels = { vs:'SF VS', vsop:'SF VSOP', xo:'SF XO' };
+    const bloquants = [...sfEpuisesEnAttente].map(t => labels[t]).join(', ');
+    alert(`⛔ Stock SF épuisé : ${bloquants}\n\nScannez la nouvelle fiche palette SF avant de continuer.`);
+    return;
+  }
+
+  // ── Vérifier si le stock SF est suffisant pour une palette complète
+  // (sauf si palette incomplète déclarée — dans ce cas l'opérateur saisit les cs manuellement)
+  if (!isIncomplete) {
+    const sfInsuffisants = [];
+    ['vs','vsop','xo'].forEach(t => {
+      if (!sfStock[t]) return;
+      const besoin = getConsoSF(t);
+      if (sfStock[t].restant < besoin) {
+        const labels = { vs:'SF VS', vsop:'SF VSOP', xo:'SF XO' };
+        sfInsuffisants.push(`${labels[t]} : ${sfStock[t].restant.toFixed(2)} cs restants (besoin : ${besoin.toFixed(2)} cs)`);
+      }
+    });
+    if (sfInsuffisants.length > 0) {
+      alert(
+        `⛔ Stock insuffisant pour une palette PF complète :\n\n${sfInsuffisants.join('\n')}\n\n` +
+        `→ Activez le toggle "Palette incomplète" pour saisir les quantités réelles,\n` +
+        `  ou rechargez les palettes SF concernées.`
+      );
+      // Activer automatiquement le toggle palette incomplète
+      if (!isIncomplete) {
+        document.getElementById('toggle-incomplete').checked = true;
+        toggleIncomplete();
+        document.getElementById('card-export').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+      return;
+    }
+  }
+
+  // Sauvegarde palette courante avec quantités
+  const manualQty = {};
+  if (isIncomplete) {
+    ['pf','vs','vsop','xo'].forEach(t => {
+      const v = document.getElementById(`qty-${t}`).value;
+      manualQty[t] = v !== '' ? parseInt(v) : null;
+    });
+  }
+
+  // Construire sfRupturesComplete pour cette palette
+  // En cas de rupture : sfRuptures[t] contient les cs de l'ancienne palette
+  // + on ajoute les cs de la nouvelle palette = consoTotale - csAncienne
+  const sfRupturesComplete = { vs: [], vsop: [], xo: [] };
+  ['vs','vsop','xo'].forEach(t => {
+    if (sfRuptures[t].length > 0) {
+      const consoTotale = getConsoSF(t);
+      const csAncienne = sfRuptures[t].reduce((sum, r) => sum + (r.cs || 0), 0);
+      const csNouvelle = Math.max(0, consoTotale - csAncienne);
+      sfRupturesComplete[t] = [...sfRuptures[t]];
+      if (csNouvelle > 0 && currentData[t]) {
+        sfRupturesComplete[t].push({
+          sscc: currentData[t].sscc || currentData[t].lot,
+          lot:  currentData[t].lot,
+          cs:   csNouvelle
+        });
+      }
+    }
+    // Sinon sfRupturesComplete[t] reste vide → ligne unique dans l'Excel
+  });
+
+  allPalettes.push({
+    num: allPalettes.length + 1,
+    time: new Date().toLocaleTimeString('fr-FR'),
+    incomplete: isIncomplete,
+    manualQty: isIncomplete ? manualQty : null,
+    keepSF,
+    pf:   { ...currentData.pf },
+    vs:   { ...currentData.vs },
+    vsop: { ...currentData.vsop },
+    xo:   { ...currentData.xo },
+    sfRuptures: sfRupturesComplete
+  });
+
+  // Reset ruptures et pendants pour la prochaine palette
+  sfRuptures = { vs: [], vsop: [], xo: [] };
+  // Note: sfPendingCs sera reset dans initStockSF lors du prochain scan SF
+
+  // ── Déduire la consommation SF
+  const manualPF = isIncomplete && manualQty.pf != null ? manualQty.pf : null;
+  const qtyPFRef = ofData?.pf_cases_per_pallet || currentData.pf?.quantity;
+  // Cs SF saisis manuellement (palette incomplète)
+  const manualCsSF = isIncomplete ? {
+    vs:   manualQty.vs   != null ? manualQty.vs   : null,
+    vsop: manualQty.vsop != null ? manualQty.vsop : null,
+    xo:   manualQty.xo   != null ? manualQty.xo   : null,
+  } : null;
+  deduireConsommationSF(isIncomplete, manualPF, qtyPFRef, manualCsSF);
+
+  paletteNum = allPalettes.length + 1;  // toujours synchronisé avec l'historique
+  document.getElementById('palette-counter').textContent = `Palette #${paletteNum}`;
+
+  // Sauvegarder les données SF avant reset
+  const savedSF = {
+    vs:   { ...currentData.vs },
+    vsop: { ...currentData.vsop },
+    xo:   { ...currentData.xo },
+  };
+
+  // Reset PF uniquement (toujours)
+  if (streams['pf']) stopCam('pf');
+  uploadedB64['pf'] = null;
+  currentData.pf = null;
+  isIncomplete = false;
+
+  // Reset toggle incomplet
+  document.getElementById('toggle-incomplete').checked = false;
+  document.getElementById('qty-fields').classList.remove('visible');
+  document.getElementById('badge-incomplete').classList.remove('visible');
+  ['pf','vs','vsop','xo'].forEach(t => {
+    document.getElementById(`qty-${t}`).value = '';
+    document.getElementById(`qty-${t}`).classList.remove('warning');
+  });
+
+  if (keepSF) {
+    // ── Mode "Pas de changement SF" : on conserve VS/VSOP/XO, on ouvre juste PF
+    // Les SF restent done/verrouillés, on remet juste PF en attente
+    currentData.vs   = savedSF.vs;
+    currentData.vsop = savedSF.vsop;
+    currentData.xo   = savedSF.xo;
+
+    // Reset carte PF uniquement
+    resetCardUI('pf');
+    document.getElementById('card-pf').classList.remove('locked');
+
+    // Progress : PF (idx=4) redevient actif
+    const pfIdx = STEPS.indexOf('pf');
+    const pr = document.getElementById(`prog-${pfIdx}`);
+    pr.classList.remove('done', 'active');
+    pr.querySelector('.step-num').textContent = pfIdx + 1;
+    pr.classList.add('active');
+
+    // Export reste locked
+    // export toujours accessible
+    document.getElementById('prog-5').classList.remove('done', 'active');
+    document.getElementById('prog-5').querySelector('.step-num').textContent = '6';
+
+    document.getElementById('card-pf').scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  } else {
+    // ── Mode "Palette suivante" complet : reset UI VS/VSOP/XO/PF mais CONSERVER les données SF
+    // Les données SF restent en mémoire jusqu'au prochain scan SF
+    ['vs','vsop','xo','pf'].forEach(t => { if (streams[t]) stopCam(t); });
+    uploadedB64 = {};
+    // On conserve of + vs + vsop + xo, on vide seulement pf
+    currentData = { of: currentData.of, pf: null, vs: currentData.vs, vsop: currentData.vsop, xo: currentData.xo };
+
+    // Reset UI des étapes SF (visuellement en attente, mais données conservées)
+    ['vs','vsop','xo','pf'].forEach(type => {
+      const idx = STEPS.indexOf(type);
+      resetCardUI(type);
+      document.getElementById(`card-${type}`).classList.add('locked');
+      const pr = document.getElementById(`prog-${idx}`);
+      pr.classList.remove('done', 'active');
+      pr.querySelector('.step-num').textContent = idx + 1;
+    });
+
+    // Export locked
+    // export toujours accessible
+    document.getElementById('prog-5').classList.remove('done', 'active');
+    document.getElementById('prog-5').querySelector('.step-num').textContent = '6';
+
+    // Déverrouiller VS (première étape SF)
+    document.getElementById('card-vs').classList.remove('locked');
+    document.getElementById('prog-1').classList.add('active');
+    document.getElementById('card-vs').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  // Mettre à jour les barres — l'opérateur clique sur le compteur pour rescanner
+  ['vs','vsop','xo'].forEach(t => {
+    if (sfStock[t] && sfStock[t].restant <= 0) {
+      sfEpuisesEnAttente.add(t);
+      updateEpuBar(t);
+    }
+  });
+
+  renderPalettesTable();
+  refreshExportSummary();
+  updateNoChangeSFButton();
+  sauvegarderSession();
+}
+
+// Reset UI d'une carte (sans toucher au lock)
+function resetCardUI(type) {
+  const sb = document.getElementById(`status-${type}`);
+  sb.textContent = 'En attente';
+  sb.classList.remove('done');
+  sb.style.background = ''; sb.style.color = ''; sb.style.borderColor = '';
+  const btnA = document.getElementById(`btn-annuler-${type}`);
+  if (btnA) btnA.style.display = 'none';
+  if (streams[type]) stopCam(type);
+  const vid = document.getElementById(`vid-${type}`);
+  if (vid) vid.style.display = 'none';
+  const cnv = document.getElementById(`cnv-${type}`);
+  if (cnv) cnv.style.display = 'none';
+  const ph = document.getElementById(`ph-${type}`);
+  if (ph) ph.style.display = 'flex';
+  const startBtn = document.getElementById(`start-${type}`);
+  if (startBtn) startBtn.disabled = false;
+  const stopBtn = document.getElementById(`stop-${type}`);
+  if (stopBtn) stopBtn.disabled = true;
+  const capBtn = document.getElementById(`cap-${type}`);
+  if (capBtn) capBtn.disabled = true;
+  const upPrev = document.getElementById(`upload-preview-${type}`);
+  if (upPrev) upPrev.style.display = 'none';
+  const fileInp = document.getElementById(`file-${type}`);
+  if (fileInp) fileInp.value = '';
+  document.getElementById(`result-${type}`).innerHTML =
+    '<div class="result-placeholder"><div class="icon">📋</div><p>Les données apparaîtront<br>après capture</p></div>';
+  setMsg(type, 'Démarrez la caméra ou chargez une photo', '');
+}
+
+// Génère les cellules SF avec gestion rupture multi-SSCC
+function sfCells(p, type, colorVar, cssClass) {
+  const ruptures = p.sfRuptures?.[type] || [];
+  if (ruptures.length === 0) {
+    return `<td style="font-size:9px;color:${colorVar}">${p[type]?.sscc || '—'}</td>
+            <td class="${cssClass}">${concat(p[type])}</td>
+            <td style="text-align:center;font-weight:700">${getEffectiveQty(p,type)}</td>`;
+  }
+  // Rupture : afficher le détail de chaque SSCC
+  const detail = ruptures.map(r =>
+    `<div style="font-size:9px;color:${colorVar}">${r.sscc}</div>
+     <div style="font-size:10px">${r.lot} · <strong>${r.cs.toFixed(2)} cs</strong></div>`
+  ).join('<hr style="border:none;border-top:1px dashed var(--border);margin:2px 0">');
+  return `<td colspan="3" style="padding:4px 8px">${detail}</td>`;
+}
+
+
+// ─── Édition d'une ligne du tableau ──────────────────────────────────────────
+let editPaletteIdx = -1;
+
+function ouvrirModalEdit(idx) {
+  const p = allPalettes[idx];
+  if (!p) return;
+  editPaletteIdx = idx;
+
+  document.getElementById('edit-modal-title').textContent = `Modifier palette #${p.num}`;
+
+  // Remplir PF
+  document.getElementById('edit-pf-sscc').value = p.pf?.sscc || '';
+  document.getElementById('edit-pf-lot').value  = p.pf?.lot  || '';
+  document.getElementById('edit-pf-qty').value  = p.manualQty?.pf ?? p.pf?.quantity ?? '';
+
+  // Remplir SF — utiliser sfRuptures si multi-SSCC, sinon données directes
+  const vsData  = p.sfRuptures?.vs?.length  ? p.sfRuptures.vs[0]  : { sscc: p.vs?.sscc,  lot: p.vs?.lot,  cs: null };
+  const vsopData= p.sfRuptures?.vsop?.length ? p.sfRuptures.vsop[0]: { sscc: p.vsop?.sscc, lot: p.vsop?.lot, cs: null };
+  const xoData  = p.sfRuptures?.xo?.length  ? p.sfRuptures.xo[0]  : { sscc: p.xo?.sscc,  lot: p.xo?.lot,  cs: null };
+
+  document.getElementById('edit-vs-sscc').value  = vsData.sscc  || '';
+  document.getElementById('edit-vs-lot').value   = vsData.lot   || '';
+  document.getElementById('edit-vs-cs').value    = vsData.cs    ?? (p.manualQty?.vs ?? '');
+  document.getElementById('edit-vsop-sscc').value = vsopData.sscc || '';
+  document.getElementById('edit-vsop-lot').value  = vsopData.lot  || '';
+  document.getElementById('edit-vsop-cs').value   = vsopData.cs   ?? (p.manualQty?.vsop ?? '');
+  document.getElementById('edit-xo-sscc').value  = xoData.sscc  || '';
+  document.getElementById('edit-xo-lot').value   = xoData.lot   || '';
+  document.getElementById('edit-xo-cs').value    = xoData.cs    ?? (p.manualQty?.xo ?? '');
+
+  document.getElementById('modal-edit-palette').style.display = 'flex';
+}
+
+function fermerModalEdit() {
+  document.getElementById('modal-edit-palette').style.display = 'none';
+  editPaletteIdx = -1;
+}
+
+function sauvegarderEditPalette() {
+  if (editPaletteIdx < 0) return;
+  const p = allPalettes[editPaletteIdx];
+
+  // Mettre à jour PF
+  if (p.pf) {
+    p.pf.sscc = document.getElementById('edit-pf-sscc').value.trim();
+    p.pf.lot  = document.getElementById('edit-pf-lot').value.trim();
+    const qtyPF = parseFloat(document.getElementById('edit-pf-qty').value);
+    if (!isNaN(qtyPF)) { p.pf.quantity = qtyPF; if (!p.manualQty) p.manualQty = {}; p.manualQty.pf = qtyPF; }
+  }
+
+  // Mettre à jour SF (lot + SSCC)
+  const updateSF = (type, sfObj) => {
+    if (!sfObj) return;
+    sfObj.sscc = document.getElementById(`edit-${type}-sscc`).value.trim();
+    sfObj.lot  = document.getElementById(`edit-${type}-lot`).value.trim();
+    const cs = parseFloat(document.getElementById(`edit-${type}-cs`).value);
+    if (!isNaN(cs)) {
+      if (!p.manualQty) p.manualQty = {};
+      p.manualQty[type] = cs;
+      // Mettre à jour sfRuptures si présent
+      if (p.sfRuptures?.[type]?.length) {
+        p.sfRuptures[type][0].sscc = sfObj.sscc;
+        p.sfRuptures[type][0].lot  = sfObj.lot;
+        p.sfRuptures[type][0].cs   = cs;
+      }
+    }
+  };
+  updateSF('vs',   p.vs);
+  updateSF('vsop', p.vsop);
+  updateSF('xo',   p.xo);
+
+  fermerModalEdit();
+  renderPalettesTable();
+  refreshExportSummary();
+  sauvegarderSession();
+  setMsg('pf', `✏️ Palette #${p.num} modifiée`, 'ok');
+}
+
+function renderPalettesTable() {
+  const tbody = document.getElementById('palettes-tbody');
+  tbody.innerHTML = allPalettes.map(p => {
+    const incompleteBadge = p.incomplete
+      ? `<span style="font-size:9px;background:#fff3cd;border:1px solid #ffc107;color:#856404;padding:1px 5px;border-radius:8px;margin-left:4px;">INCOMPLET</span>`
+      : '';
+    return `<tr onclick="ouvrirModalEdit(${allPalettes.indexOf(p)})" style="cursor:pointer;" title="Cliquer pour modifier">
+      <td>${p.num}${incompleteBadge}</td>
+      <td style="font-size:9px">${p.pf?.sscc || '—'}</td>
+      <td class="cell-pf">${concat(p.pf)}</td>
+      <td style="text-align:center;font-weight:700">${getEffectiveQty(p,'pf')}</td>
+      ${sfCells(p,'vs','var(--vs-color)','cell-vs')}
+      ${sfCells(p,'vsop','var(--vsop-color)','cell-vsop')}
+      ${sfCells(p,'xo','var(--xo-color)','cell-xo')}
+      <td style="font-size:10px">${(() => {
+        const hasMix = ['vs','vsop','xo'].some(t => (p.sfRuptures?.[t]?.length || 0) > 1);
+        return p.incomplete ? '⚠️ Incomplet' : hasMix ? '🔀 Multi-SSCC' : p.keepSF ? '⚡ SF reconduit' : '✓ SSCC unique';
+      })()}</td>
+      <td>${p.time}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ─── Helper ───────────────────────────────────────────────────────────────────
+function setMsg(type, msg, cls) {
+  const el = document.getElementById(`msg-${type}`);
+  el.textContent = msg;
+  el.className = 'status-msg' + (cls ? ' ' + cls : '');
+}
+
+// ─── Excel Export ─────────────────────────────────────────────────────────────
+function exportExcel() {
+  // Inclure la palette en cours si complète
+  const session = [...allPalettes];
+  if (currentData.pf && currentData.vs && currentData.vsop && currentData.xo) {
+    const manualQty = {};
+    if (isIncomplete) {
+      ['pf','vs','vsop','xo'].forEach(t => {
+        const v = document.getElementById(`qty-${t}`).value;
+        manualQty[t] = v !== '' ? parseInt(v) : null;
+      });
+    }
+    session.push({
+      num: paletteNum,
+      time: new Date().toLocaleTimeString('fr-FR'),
+      incomplete: isIncomplete,
+      manualQty: isIncomplete ? manualQty : null,
+      pf: currentData.pf, vs: currentData.vs,
+      vsop: currentData.vsop, xo: currentData.xo
+    });
+  }
+
+  const wb = XLSX.utils.book_new();
+  const now = new Date();
+
+  // ── SHEET 1 : Synthèse toutes palettes ──
+  const header = [
+    'N° Palette', 'Statut', 'SSCC PF',
+    'PF (code-lot)', 'Qté PF',
+    'SSCC SF VS', 'Lot SF VS', 'Cs VS',
+    'SSCC SF VSOP', 'Lot SF VSOP', 'Cs VSOP',
+    'SSCC SF XO', 'Lot SF XO', 'Cs XO',
+    'Heure'
+  ];
+  const rows = [
+    [`TRAÇABILITÉ PALETTES HENNESSY — OF N° ${ofData?.of_number || '—'} — ${ofData?.of_label || ''}`],
+    [`Session du ${now.toLocaleDateString('fr-FR')} | PF: ${ofData?.pf_cases_per_pallet || '?'} cs/pal | VS: ${ofData?.vs_cases_per_pallet || '?'} cs/pal | VSOP: ${ofData?.vsop_cases_per_pallet || '?'} cs/pal | XO: ${ofData?.xo_cases_per_pallet || '?'} cs/pal`],
+    [],
+    header,
+    ...session.flatMap(p => {
+      // Générer les lignes SF — une par SSCC si rupture partielle
+      const consoSF = (t) => ofData ? (
+        (parseFloat(ofData.pf_cases_per_pallet)||40) * (parseFloat(ofData.pf_units_per_case)||24) /
+        (parseFloat(t==='vs'?ofData.vs_units_per_case:t==='vsop'?ofData.vsop_units_per_case:ofData.xo_units_per_case)||120)
+      ) : 8;
+      const sfRows = {};
+      ['vs','vsop','xo'].forEach(t => {
+        const ruptures = p.sfRuptures?.[t] || [];
+        if (ruptures.length > 0) {
+          sfRows[t] = ruptures;
+        } else {
+          // Quantité réelle = consommation théorique ou qté manuelle si palette incomplète
+          const csReels = p.incomplete && p.manualQty?.[t] != null
+            ? parseFloat(p.manualQty[t])
+            : consoSF(t);
+          sfRows[t] = [{ sscc: p[t]?.sscc || '', lot: p[t]?.lot || '', cs: csReels }];
+        }
+      });
+      const maxLines = Math.max(sfRows.vs.length, sfRows.vsop.length, sfRows.xo.length);
+      // Déterminer le statut : "MIX" si multi-SSCC sur au moins un SF
+      const hasMix = ['vs','vsop','xo'].some(t => (p.sfRuptures?.[t]?.length || 0) > 1 ||
+        ((p.sfRuptures?.[t]?.length || 0) === 1 && sfRows[t].length > 1));
+      const statut = p.incomplete ? 'INCOMPLET' : hasMix ? 'Multi-SSCC' : p.keepSF ? 'SF reconduit' : 'SSCC unique';
+      return Array.from({ length: maxLines }, (_, i) => [
+        p.num,
+        statut,
+        p.pf?.sscc || '',
+        concat(p.pf), getEffectiveQty(p, 'pf'),
+        sfRows.vs[i]?.sscc   || '', sfRows.vs[i]?.lot   || '', sfRows.vs[i]   ? Number(sfRows.vs[i].cs).toFixed(2)   : '',
+        sfRows.vsop[i]?.sscc || '', sfRows.vsop[i]?.lot || '', sfRows.vsop[i] ? Number(sfRows.vsop[i].cs).toFixed(2) : '',
+        sfRows.xo[i]?.sscc   || '', sfRows.xo[i]?.lot   || '', sfRows.xo[i]  ? Number(sfRows.xo[i].cs).toFixed(2)   : '',
+        i === 0 ? p.time : ''
+      ]);
+    })
+  ];
+  const ws1 = XLSX.utils.aoa_to_sheet(rows);
+  ws1['!cols'] = [{wch:10},{wch:12},{wch:22},{wch:22},{wch:7},{wch:22},{wch:22},{wch:7},{wch:22},{wch:22},{wch:7},{wch:22},{wch:22},{wch:7},{wch:10}];
+  ws1['!merges'] = [{ s:{r:0,c:0}, e:{r:0,c:14} }];
+
+  // Format numérique pour les colonnes quantités
+  for (let r = 4; r < 4 + session.length * 3 + 5; r++) {
+    [4, 7, 10, 13].forEach(c => {
+      const addr = XLSX.utils.encode_cell({r, c});
+      if (ws1[addr] && ws1[addr].v !== '' && ws1[addr].v !== undefined) {
+        const num = parseFloat(ws1[addr].v);
+        if (!isNaN(num)) { ws1[addr].t = 'n'; ws1[addr].v = num; }
+      }
+    });
+  }
+
+  XLSX.utils.book_append_sheet(wb, ws1, 'Synthèse');
+
+  // ── SHEET 2 : Détail complet par palette ──
+  const detailRows = [
+    ['DÉTAIL COMPLET PAR PALETTE'],
+    [],
+    ['N° Palette', 'Statut', 'Type', 'Code Produit', 'LOT', 'Code-Lot', 'Qté fiche', 'Qté réelle', 'Référence', 'Date Embout.', 'Marché', 'GTIN', 'SSCC', 'Ligne']
+  ];
+  session.forEach(p => {
+    ['pf','vs','vsop','xo'].forEach(t => {
+      const d = p[t];
+      const qtyFiche = d?.quantity || '';
+      const qtyReelle = getEffectiveQty(p, t);
+      detailRows.push([
+        p.num,
+        p.incomplete ? 'INCOMPLET' : 'Complet',
+        t.toUpperCase(),
+        d?.product_code || '', d?.lot || '', concat(d),
+        qtyFiche, qtyReelle,
+        d?.product_ref || '', d?.bottling_date || '',
+        d?.market || '', d?.gtin || '', d?.sscc || '', d?.ligne || ''
+      ]);
+    });
+    detailRows.push([]);
+  });
+  const ws2 = XLSX.utils.aoa_to_sheet(detailRows);
+  ws2['!cols'] = [{wch:10},{wch:10},{wch:7},{wch:14},{wch:12},{wch:24},{wch:8},{wch:8},{wch:28},{wch:14},{wch:12},{wch:16},{wch:22},{wch:10}];
+  XLSX.utils.book_append_sheet(wb, ws2, 'Détail');
+
+  const ofNum = ofData?.of_number || 'session';
+  // Ajouter ligne de rebuts en bas
+  if (sfRebuts.vs > 0 || sfRebuts.vsop > 0 || sfRebuts.xo > 0) {
+    rows.push([]);
+    rows.push(['REBUTS SESSION', '', '', '', '',
+      '', 'REBUT VS', sfRebuts.vs,
+      '', 'REBUT VSOP', sfRebuts.vsop,
+      '', 'REBUT XO', sfRebuts.xo, '']);
+  }
+
+  const fname = `tracabilite_OF${ofNum}_${now.toISOString().slice(0,10)}_${session.length}palettes.xlsx`;
+  const wbout = XLSX.write(wb, {bookType:'xlsx', type:'base64'});
+  XLSX.writeFile(wb, fname);
+  // Révéler bouton Nouvel OF après premier export
+  document.getElementById('btn-nouvel-of').style.display = 'inline-block';
+  sauvegarderSession();
+  // Envoi mail automatique via EmailJS
+  envoyerRapportParMail(fname, wbout, session, now);
+}
+
+// ─── Reset total ──────────────────────────────────────────────────────────────
+// ─── Envoi rapport par mail via EmailJS ──────────────────────────────────────
+const EJS_SERVICE  = 'service_oj45q8g';
+const EJS_TEMPLATE = 'template_4xy4fvx';
+const EJS_KEY      = 'SIFjIPjAKNPhqXzqX';
+const MAIL_DESTINATAIRE = 'jerome.briand@pdf16.fr';
+
+// Init EmailJS une seule fois au chargement
+window.addEventListener('load', () => {
+  try { emailjs.init(EJS_KEY); } catch(e) { console.warn('EmailJS init:', e); }
+});
+
+function envoyerRapportParMail(nomFichier, wbout, session, now) {
+  const dateStr = now.toLocaleDateString('fr-FR');
+  const ofNum   = ofData?.of_number || '—';
+
+  const lignes = session.map(p => {
+    const hasMix = ['vs','vsop','xo'].some(t => (p.sfRuptures?.[t]?.length || 0) > 1);
+    const statut = p.incomplete ? 'INCOMPLET' : hasMix ? 'Multi-SSCC' : 'SSCC unique';
+    return `Palette ${p.num} (${statut}) — SSCC PF: ${p.pf?.sscc || '—'} — VS: ${p.vs?.lot||'—'} / VSOP: ${p.vsop?.lot||'—'} / XO: ${p.xo?.lot||'—'}`;
+  }).join('\n');
+
+  const rebuts = `Rebuts — VS: ${sfRebuts.vs||0} cs / VSOP: ${sfRebuts.vsop||0} cs / XO: ${sfRebuts.xo||0} cs`;
+  const stocks = `Stock restant — VS: ${sfStock.vs?.restant?.toFixed(2)||'?'} cs / VSOP: ${sfStock.vsop?.restant?.toFixed(2)||'?'} cs / XO: ${sfStock.xo?.restant?.toFixed(2)||'?'} cs`;
+
+  const message =
+    `OF N° ${ofNum} — Session du ${dateStr}\n` +
+    `Nombre de palettes : ${session.length}\n\n` +
+    `DÉTAIL :\n${lignes}\n\n${rebuts}\n${stocks}\n\n` +
+    `Le fichier Excel "${nomFichier}" a été téléchargé sur l'appareil.\n\n` +
+    `Cordialement,\nApplication Traçabilité JHC`;
+
+  emailjs.send(EJS_SERVICE, EJS_TEMPLATE, {
+    to_email:        MAIL_DESTINATAIRE,
+    subject:         `Traçabilité palettes — OF ${ofNum} — ${dateStr}`,
+    message,
+    attachment_name: nomFichier,
+    my_file:         wbout,
+  }).then(() => {
+    console.log('Rapport traçabilité envoyé par mail');
+  }).catch(e => {
+    console.warn('Erreur envoi mail traçabilité:', e);
+  });
+}
+
+// ─── Code PIN ─────────────────────────────────────────────────────────────────
+const PIN_CODE = '1234'; // ← Changez ce code PIN
+
+function ouvrirModalPIN() {
+  document.getElementById('pin-input').value = '';
+  document.getElementById('pin-error').style.display = 'none';
+  document.getElementById('modal-pin').style.display = 'flex';
+  setTimeout(() => document.getElementById('pin-input').focus(), 100);
+}
+function fermerModalPIN() {
+  document.getElementById('modal-pin').style.display = 'none';
+}
+function validerPIN() {
+  const val = document.getElementById('pin-input').value;
+  if (val !== PIN_CODE) {
+    document.getElementById('pin-error').style.display = 'block';
+    document.getElementById('pin-input').value = '';
+    return;
+  }
+  fermerModalPIN();
+  // Reset complet
+  STEPS.forEach(t => { if (streams[t]) stopCam(t); });
+  localStorage.removeItem('jhc_session');
+  location.reload();
+}
+
+// ─── Nouvel OF ────────────────────────────────────────────────────────────────
+function demanderNouvelOF() {
+  document.getElementById('modal-nouvel-of').style.display = 'flex';
+}
+function fermerModalNouvelOF() {
+  document.getElementById('modal-nouvel-of').style.display = 'none';
+}
+function confirmerNouvelOF() {
+  fermerModalNouvelOF();
+  // Export + envoi mail, puis reset sans reload
+  try { exportExcel(); } catch(e) { console.warn('Export avant reset:', e); }
+  // Attendre 3s pour laisser EmailJS envoyer + Excel télécharger
+  setTimeout(() => {
+    STEPS.forEach(t => { if (streams[t]) stopCam(t); });
+    localStorage.removeItem('jhc_session');
+    // Reset complet sans reload
+    resetCompletSansReload();
+  }, 3000);
+}
+
+function resetCompletSansReload() {
+  // Reset toutes les variables d'état
+  allPalettes  = [];
+  paletteNum   = 1;
+  ofData       = null;
+  currentData  = { of:null, pf:null, vs:null, vsop:null, xo:null };
+  sfStock      = { vs:null, vsop:null, xo:null };
+  sfEpuisesEnAttente = new Set();
+  sfRuptures   = { vs:[], vsop:[], xo:[] };
+  sfPendingCs  = { vs:0, vsop:0, xo:0 };
+  sfRebuts     = { vs:0, vsop:0, xo:0 };
+  isIncomplete = false;
+  uploadedB64  = {};
+
+  // Reset UI
+  document.getElementById('palette-counter').textContent = 'Palette #1';
+  document.getElementById('btn-nouvel-of').style.display = 'none';
+  document.getElementById('btn-export-header').style.display = 'inline-block';
+  document.getElementById('btn-no-change-sf').style.display = 'none';
+
+  // Remettre toutes les cartes à zéro
+  STEPS.forEach(type => {
+    const idx = STEPS.indexOf(type);
+    resetCardUI(type);
+    const pr = document.getElementById(`prog-${idx}`);
+    pr.classList.remove('done','active');
+    pr.querySelector('.step-num').textContent = idx + 1;
+    if (type !== 'of') document.getElementById(`card-${type}`).classList.add('locked');
+    else {
+      document.getElementById(`card-${type}`).classList.remove('locked');
+      document.getElementById(`prog-${idx}`).classList.add('active');
+    }
+    const btnA = document.getElementById(`btn-annuler-${type}`);
+    if (btnA) btnA.style.display = 'none';
+  });
+  document.getElementById('card-export').classList.add('locked');
+  document.getElementById('prog-5').classList.remove('done','active');
+  document.getElementById('prog-5').querySelector('.step-num').textContent = '6';
+
+  // Reset barres SF
+  ['vs','vsop','xo'].forEach(t => {
+    document.getElementById(`epu-${t}`).classList.add('inactive');
+    document.getElementById(`epu-text-${t}`).textContent = '—';
+    document.getElementById(`epu-fill-${t}`).style.width = '100%';
+  });
+
+  // Reset tableau
+  renderPalettesTable();
+  document.getElementById('card-of').scrollIntoView({ behavior:'smooth', block:'start' });
+}
+
+// ─── Sauvegarde session localStorage ─────────────────────────────────────────
+const LS_SESSION = 'jhc_session';
+
+function sauvegarderSession() {
+  try {
+    const session = {
+      allPalettes, paletteNum, ofData,
+      currentData,  // fiches SF/PF en cours
+      sfStock, sfRuptures, sfPendingCs, sfRebuts,
+      savedAt: new Date().toISOString()
+    };
+    localStorage.setItem(LS_SESSION, JSON.stringify(session));
+  } catch(e) { console.warn('Sauvegarde session impossible', e); }
+}
+
+function restaurerSession() {
+  try {
+    const raw = localStorage.getItem(LS_SESSION);
+    if (!raw) return false;
+    const s = JSON.parse(raw);
+    if (!s.allPalettes || !s.ofData) return false;
+    allPalettes  = s.allPalettes;
+    paletteNum   = s.paletteNum || allPalettes.length + 1;
+    ofData       = s.ofData;
+    sfStock      = s.sfStock     || { vs: null, vsop: null, xo: null };
+    sfRuptures   = s.sfRuptures  || { vs: [], vsop: [], xo: [] };
+    sfPendingCs  = s.sfPendingCs || { vs: 0, vsop: 0, xo: 0 };
+    sfRebuts     = s.sfRebuts    || { vs: 0, vsop: 0, xo: 0 };
+    // Restaurer les fiches en cours (SF gardés, PF à rescanner)
+    if (s.currentData) {
+      currentData.vs   = s.currentData.vs   || null;
+      currentData.vsop = s.currentData.vsop || null;
+      currentData.xo   = s.currentData.xo   || null;
+      currentData.of   = s.currentData.of   || ofData;
+      currentData.pf   = null; // PF toujours à rescanner
+    }
+    return true;
+  } catch(e) { return false; }
+}
+
+function confirmReset() { ouvrirModalPIN(); }
+
+// ─── Drag & drop upload ───────────────────────────────────────────────────────
+STEPS.forEach(type => {
+  const ui = document.getElementById(`${type}-upload-ui`);
+  if (!ui) return;
+  ui.addEventListener('dragover', e => e.preventDefault());
+  ui.addEventListener('drop', e => {
+    e.preventDefault();
+    const file = e.dataTransfer.files[0];
+    if (file) handleFile({ target: { files: [file] } }, type);
+  });
+});
+</script>
+</body>
+</html>
